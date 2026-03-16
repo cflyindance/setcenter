@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>图片素材 - 配置中心</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="assets/common.css" />
+  <script src="assets/toast.js"></script>
+  <script>
+    tailwind.config = { theme: { extend: { colors: { primary: '#1677ff', 'sidebar-bg': '#fafafa', 'sidebar-active': '#e6f4ff' }, borderRadius: { ant: '6px' } } } };
+  </script>
+</head>
+<body class="bg-white text-gray-900 antialiased">
+  <div class="app-layout flex min-h-screen">
+    <!-- 左侧：仅全局导航（不含分类） -->
+    <aside class="sidebar flex-shrink-0 flex flex-col w-60">
+      <div class="p-4 border-b border-gray-100 flex items-center gap-2">
+        <div class="w-8 h-8 rounded bg-amber-400 flex items-center justify-center text-white font-bold">M</div>
+        <span class="font-medium">MenuSifu</span>
+        <div class="ml-auto flex gap-1">
+          <button type="button" class="p-1 rounded hover:bg-gray-100" aria-label="文档">📄</button>
+          <button type="button" class="p-1 rounded hover:bg-gray-100" aria-label="全屏">⊞</button>
+        </div>
+      </div>
+      <nav class="flex-1 p-3 space-y-1 overflow-auto">
+        <a href="material.html" class="menu-item active px-3 py-2 flex items-center justify-between rounded-ant bg-sidebar-active text-primary font-medium"><span>图片素材</span></a>
+        <div class="nav-group">
+          <div class="nav-group-title menu-item px-3 py-2 text-gray-600 flex items-center justify-between cursor-pointer hover:bg-gray-100 rounded-ant" onclick="this.parentElement.classList.toggle('collapsed')">
+            <span>配置中心</span>
+            <span class="nav-arrow text-xs transition-transform">⌄</span>
+          </div>
+          <div class="nav-group-items pl-3 space-y-0.5">
+            <a href="kiosk-theme-list.html" class="menu-item px-3 py-2 text-gray-600 rounded-ant hover:bg-gray-100 flex items-center">Kiosk屏保</a>
+          </div>
+        </div>
+      </nav>
+      <div class="p-3 border-t border-gray-100 flex items-center gap-2">
+        <button type="button" class="p-1.5 rounded hover:bg-gray-100">📄</button>
+        <span class="w-px h-4 bg-gray-200"></span>
+        <button type="button" class="p-1.5 rounded hover:bg-gray-100">👤</button>
+        <a href="#" class="flex-1 flex items-center justify-between text-gray-600 text-sm"><span>M's Coffee</span><span>→</span></a>
+      </div>
+    </aside>
+
+    <!-- 右侧主内容：顶部栏 + 分类（左）与图片网格（右） -->
+    <main class="main-content flex-1 flex flex-col min-w-0">
+      <!-- 顶部：标题、搜索、Add -->
+      <div class="flex flex-wrap items-center gap-3 mb-4">
+        <h1 class="text-lg font-semibold text-gray-800" id="pageTitle">图片素材</h1>
+        <div class="relative flex-1 min-w-[200px] max-w-xs ml-auto">
+          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true">🔍</span>
+          <input type="search" id="searchImage" placeholder="搜索素材名称" class="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-ant text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" aria-label="搜索素材" />
+        </div>
+        <button type="button" id="btnAddImage" class="btn-primary inline-flex items-center gap-1.5 px-4 py-2 rounded-ant text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">+ 添加</button>
+      </div>
+
+      <input type="file" id="fileInput" accept="image/*" multiple class="hidden" />
+
+      <!-- 主体：左侧分类列表 + 右侧图片网格 -->
+      <div class="flex flex-1 min-h-0 gap-6">
+        <!-- 分类列（菜单素材右侧） -->
+        <div class="flex-shrink-0 w-36 flex flex-col">
+          <div id="categoryList" class="space-y-0.5">
+            <!-- 由 JS 渲染：All / 屏保 / 广告 / 其他 等 -->
+          </div>
+          <button type="button" id="btnNewCategory" class="mt-3 text-sm text-primary hover:underline flex items-center gap-1">
+            <span>+</span> 新建分类
+          </button>
+        </div>
+        <!-- 图片网格 -->
+        <div class="flex-1 min-w-0 flex flex-col">
+          <div id="imageGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 content-start overflow-auto">
+            <!-- 图片卡片由 JS 渲染 -->
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between mt-4 pt-4 border-t border-gray-100 flex-shrink-0">
+        <span class="text-gray-500 text-sm">Total <span id="totalCount">0</span> items</span>
+        <div class="flex items-center gap-1">
+          <button type="button" class="p-1.5 rounded hover:bg-gray-100 disabled:opacity-50 pagination-prev" disabled>&lt;</button>
+          <button type="button" class="pagination-num px-2 py-1 rounded bg-primary text-white text-sm">1</button>
+          <button type="button" class="pagination-num px-2 py-1 rounded hover:bg-gray-100 text-sm">2</button>
+          <span class="px-1">...</span>
+          <button type="button" class="pagination-num px-2 py-1 rounded hover:bg-gray-100 text-sm">10</button>
+          <button type="button" class="p-1.5 rounded hover:bg-gray-100 pagination-next">&gt;</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- 新建分类弹窗 -->
+  <div id="modalNewCategory" class="modal-backdrop fixed inset-0 z-50 hidden items-center justify-center" aria-modal="true" role="dialog" aria-labelledby="modalNewCategoryTitle">
+    <div class="modal-content bg-white rounded-lg w-full max-w-sm mx-4 p-5 border border-gray-100">
+      <h3 id="modalNewCategoryTitle" class="text-base font-semibold text-gray-800 mb-3">新建分类</h3>
+      <input type="text" id="newCategoryName" placeholder="请输入分类名称" class="w-full px-3 py-2 border border-gray-200 rounded-ant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary mb-4" maxlength="20" aria-label="分类名称" />
+      <div class="flex justify-end gap-2">
+        <button type="button" id="modalCancelCategory" class="btn-default px-4 py-2 rounded-ant">取消</button>
+        <button type="button" id="modalConfirmCategory" class="btn-primary px-4 py-2 rounded-ant">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 移动分类弹窗 -->
+  <div id="modalMoveCategory" class="modal-backdrop fixed inset-0 z-50 hidden items-center justify-center" aria-modal="true" role="dialog" aria-labelledby="modalMoveCategoryTitle">
+    <div class="modal-content bg-white rounded-lg w-full max-w-sm mx-4 p-5 border border-gray-100">
+      <h3 id="modalMoveCategoryTitle" class="text-base font-semibold text-gray-800 mb-3">移动到分类</h3>
+      <p class="text-sm text-gray-500 mb-3">将图片 "<span id="moveImageName" class="text-gray-800 font-medium"></span>" 移动到：</p>
+      <select id="moveCategorySelect" class="w-full px-3 py-2 border border-gray-200 rounded-ant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary mb-4" aria-label="选择目标分类">
+        <!-- 分类选项由 JS 渲染 -->
+      </select>
+      <div class="flex justify-end gap-2">
+        <button type="button" id="modalCancelMove" class="btn-default px-4 py-2 rounded-ant">取消</button>
+        <button type="button" id="modalConfirmMove" class="btn-primary px-4 py-2 rounded-ant">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      var STORAGE_CATEGORIES = 'material_categories';
+      var STORAGE_IMAGES = 'material_images';
+
+      var defaultCategories = ['全部', '屏保素材', '广告素材', '其他'];
+
+      function getCategories() {
+        try {
+          var saved = localStorage.getItem(STORAGE_CATEGORIES);
+          return saved ? JSON.parse(saved) : defaultCategories.slice();
+        } catch (e) {
+          return defaultCategories.slice();
+        }
+      }
+
+      function saveCategories(list) {
+        localStorage.setItem(STORAGE_CATEGORIES, JSON.stringify(list));
+      }
+
+      function getImages() {
+        try {
+          var saved = localStorage.getItem(STORAGE_IMAGES);
+          return saved ? JSON.parse(saved) : [];
+        } catch (e) {
+          return [];
+        }
+      }
+
+      function saveImages(list) {
+        localStorage.setItem(STORAGE_IMAGES, JSON.stringify(list));
+      }
+
+      // 初始示例图片（仅当没有任何图片时写入）
+      function ensureDemoImages() {
+        var images = getImages();
+        if (images.length === 0) {
+          var demo = [
+            { id: '1', name: '圣诞节', category: '屏保素材', tagColor: 'blue', url: '' },
+            { id: '2', name: '中秋节', category: '广告素材', tagColor: 'red', url: '' },
+            { id: '3', name: '新年', category: '屏保素材', tagColor: 'blue', url: '' },
+            { id: '4', name: '端午节', category: '广告素材', tagColor: 'red', url: '' },
+            { id: '5', name: '促销图', category: '其他', tagColor: 'green', url: '' },
+          ];
+          saveImages(demo);
+        }
+      }
+
+      function getCurrentCategory() {
+        var hash = (location.hash || '#全部').slice(1);
+        return decodeURIComponent(hash) || '全部';
+      }
+
+      function renderCategorySidebar() {
+        var list = getCategories();
+        var html = list.map(function(cat) {
+          var href = 'material.html#' + encodeURIComponent(cat);
+          return '<a href="' + href + '" class="category-link block px-3 py-2 rounded-ant text-sm text-gray-700 hover:bg-gray-100" data-category="' + escapeHtml(cat) + '">' + escapeHtml(cat) + '</a>';
+        }).join('');
+        document.getElementById('categoryList').innerHTML = html;
+        document.querySelectorAll('.category-link').forEach(function(link) {
+          link.addEventListener('click', function(e) {
+            e.preventDefault();
+            location.hash = encodeURIComponent(this.getAttribute('data-category'));
+            setActiveCategory();
+            renderGrid();
+          });
+        });
+      }
+
+      function setActiveCategory() {
+        var current = getCurrentCategory();
+        document.querySelectorAll('.category-link').forEach(function(link) {
+          if (link.getAttribute('data-category') === current) {
+            link.classList.add('bg-sidebar-active', 'text-primary', 'font-medium');
+            link.classList.remove('text-gray-700');
+          } else {
+            link.classList.remove('bg-sidebar-active', 'text-primary', 'font-medium');
+            link.classList.add('text-gray-700');
+          }
+        });
+        document.getElementById('pageTitle').textContent = current === '全部' ? '图片素材' : current;
+      }
+
+      function escapeHtml(s) {
+        var div = document.createElement('div');
+        div.textContent = s;
+        return div.innerHTML;
+      }
+
+      var tagColors = { blue: 'bg-blue-100 text-blue-700', red: 'bg-red-100 text-red-700', green: 'bg-emerald-100 text-emerald-700', default: 'bg-gray-100 text-gray-700' };
+
+      function renderGrid() {
+        var current = getCurrentCategory();
+        var search = (document.getElementById('searchImage').value || '').trim().toLowerCase();
+        var images = getImages();
+        var filtered = images.filter(function(img) {
+          var matchCat = current === '全部' || img.category === current;
+          var matchSearch = !search || (img.name && img.name.toLowerCase().indexOf(search) >= 0);
+          return matchCat && matchSearch;
+        });
+
+        var html = filtered.map(function(img) {
+          var tagCls = tagColors[img.tagColor] || tagColors.default;
+          var imgSrc = img.url || 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="140" viewBox="0 0 200 140"><rect fill="#f3f4f6" width="200" height="140"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#9ca3af" font-size="14">' + escapeHtml(img.name) + '</text></svg>');
+          var tagHtml = img.category ? '<span class="absolute top-2 right-2 px-1.5 py-0.5 rounded text-xs ' + tagCls + '">' + escapeHtml(img.category) + '</span>' : '';
+          return '<div class="screensaver-card border border-gray-100 rounded-ant overflow-hidden group" data-id="' + escapeHtml(img.id) + '">' +
+            '<div class="aspect-[4/3] bg-gray-100 relative">' +
+              '<img src="' + imgSrc + '" alt="" class="w-full h-full object-cover" />' +
+              tagHtml +
+              '<div class="absolute top-2 ' + (img.category ? 'right-8' : 'right-2') + ' opacity-0 group-hover:opacity-100 transition-opacity">' +
+                '<button type="button" class="img-more p-1 rounded bg-white/90 hover:bg-white text-gray-600" aria-label="更多">⋯</button>' +
+                '<div class="img-dropdown hidden absolute right-0 top-full mt-1 py-1 bg-white border border-gray-200 rounded-ant shadow-lg z-10 min-w-[100px]">' +
+                  '<button type="button" class="img-edit block w-full text-left px-3 py-2 text-sm hover:bg-gray-50">编辑</button>' +
+                  '<button type="button" class="img-move block w-full text-left px-3 py-2 text-sm hover:bg-gray-50">移动到</button>' +
+                  '<button type="button" class="img-crop block w-full text-left px-3 py-2 text-sm hover:bg-gray-50">裁剪</button>' +
+                  '<button type="button" class="img-delete block w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-red-600">删除</button>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+            '<div class="p-2 flex items-center justify-between">' +
+              '<span class="text-sm text-gray-800 truncate flex-1">' + escapeHtml(img.name) + '</span>' +
+              '<button type="button" class="img-more p-1 rounded hover:bg-gray-100 text-gray-500 md:hidden" aria-label="更多">⋯</button>' +
+            '</div>' +
+          '</div>';
+        }).join('');
+
+        document.getElementById('imageGrid').innerHTML = html;
+        document.getElementById('totalCount').textContent = filtered.length;
+
+        document.querySelectorAll('.img-more').forEach(function(btn) {
+          btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            var card = this.closest('.screensaver-card');
+            var dropdown = card.querySelector('.img-dropdown');
+            document.querySelectorAll('.img-dropdown').forEach(function(d) { d.classList.add('hidden'); });
+            dropdown.classList.toggle('hidden');
+          });
+        });
+        document.querySelectorAll('.img-edit').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            var id = this.closest('.screensaver-card').getAttribute('data-id');
+            var name = prompt('编辑图片名称', (getImages().find(function(i) { return i.id === id; }) || {}).name);
+            if (name != null && name.trim()) {
+              var list = getImages();
+              var item = list.find(function(i) { return i.id === id; });
+              if (item) { item.name = name.trim(); saveImages(list); renderGrid(); }
+            }
+          });
+        });
+        document.querySelectorAll('.img-delete').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            var id = this.closest('.screensaver-card').getAttribute('data-id');
+            if (confirm('确定删除该图片？')) {
+              var list = getImages().filter(function(i) { return i.id !== id; });
+              saveImages(list);
+              renderGrid();
+            }
+          });
+        });
+        document.querySelectorAll('.img-move').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            var id = this.closest('.screensaver-card').getAttribute('data-id');
+            openMoveModal(id);
+          });
+        });
+        document.addEventListener('click', function() {
+          document.querySelectorAll('.img-dropdown').forEach(function(d) { d.classList.add('hidden'); });
+        });
+      }
+
+      var moveImageId = null;
+      var moveModal = document.getElementById('modalMoveCategory');
+
+      function openMoveModal(id) {
+        var images = getImages();
+        var img = images.find(function(i) { return i.id === id; });
+        if (!img) return;
+        moveImageId = id;
+        document.getElementById('moveImageName').textContent = img.name || '未命名';
+        var categories = getCategories().filter(function(c) { return c !== '全部'; });
+        var select = document.getElementById('moveCategorySelect');
+        select.innerHTML = categories.map(function(cat) {
+          var selected = cat === img.category ? ' selected' : '';
+          return '<option value="' + escapeHtml(cat) + '"' + selected + '>' + escapeHtml(cat) + '</option>';
+        }).join('');
+        moveModal.classList.remove('hidden');
+        moveModal.classList.add('flex');
+      }
+
+      function closeMoveModal() {
+        moveModal.classList.add('hidden');
+        moveModal.classList.remove('flex');
+        moveImageId = null;
+      }
+
+      document.getElementById('modalCancelMove').addEventListener('click', closeMoveModal);
+      moveModal.addEventListener('click', function(e) {
+        if (e.target === moveModal) closeMoveModal();
+      });
+      document.getElementById('modalConfirmMove').addEventListener('click', function() {
+        if (!moveImageId) return;
+        var newCategory = document.getElementById('moveCategorySelect').value;
+        if (!newCategory) {
+          Toast.warning('请选择目标分类');
+          return;
+        }
+        var images = getImages();
+        var img = images.find(function(i) { return i.id === moveImageId; });
+        if (img) {
+          img.category = newCategory;
+          var colors = { '屏保素材': 'blue', '广告素材': 'red', '其他': 'green' };
+          img.tagColor = colors[newCategory] || 'default';
+          saveImages(images);
+          Toast.success('已移动到"' + newCategory + '"');
+          renderGrid();
+        }
+        closeMoveModal();
+      });
+
+      // 新建分类
+      var modal = document.getElementById('modalNewCategory');
+      document.getElementById('btnNewCategory').addEventListener('click', function() {
+        document.getElementById('newCategoryName').value = '';
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.getElementById('newCategoryName').focus();
+      });
+      document.getElementById('modalCancelCategory').addEventListener('click', function() {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      });
+      document.getElementById('modalConfirmCategory').addEventListener('click', function() {
+        var name = (document.getElementById('newCategoryName').value || '').trim();
+        if (!name) {
+          Toast.warning('请输入分类名称');
+          return;
+        }
+        var list = getCategories();
+        if (list.indexOf(name) >= 0) {
+          Toast.warning('该分类已存在');
+          return;
+        }
+        list.push(name);
+        saveCategories(list);
+        renderCategorySidebar();
+        setActiveCategory();
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        location.hash = encodeURIComponent(name);
+        renderGrid();
+      });
+      modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+          modal.classList.add('hidden');
+          modal.classList.remove('flex');
+        }
+      });
+
+      // 上传图片（当前分类）
+      document.getElementById('btnAddImage').addEventListener('click', function() {
+        document.getElementById('fileInput').click();
+      });
+      document.getElementById('fileInput').addEventListener('change', function() {
+        var current = getCurrentCategory();
+        if (current === '全部') {
+          Toast.warning('请先左侧选择或新建一个分类，再上传图片');
+          this.value = '';
+          return;
+        }
+        var files = this.files;
+        if (!files || !files.length) return;
+        var list = getImages();
+        var nextId = String(1 + list.reduce(function(max, i) { var n = parseInt(i.id, 10); return isNaN(n) ? max : Math.max(max, n); }, 0));
+        for (var i = 0; i < files.length; i++) {
+          var file = files[i];
+          if (!file.type.startsWith('image/')) continue;
+          var url = URL.createObjectURL(file);
+          list.push({
+            id: nextId,
+            name: file.name.replace(/\.[^.]+$/, '') || '未命名',
+            category: current,
+            tagColor: 'default',
+            url: url
+          });
+          nextId = String(parseInt(nextId, 10) + 1);
+        }
+        saveImages(list);
+        this.value = '';
+        renderGrid();
+      });
+
+      // 搜索
+      document.getElementById('searchImage').addEventListener('input', function() {
+        renderGrid();
+      });
+
+      // 初始化
+      ensureDemoImages();
+      renderCategorySidebar();
+      setActiveCategory();
+      renderGrid();
+
+      window.addEventListener('hashchange', function() {
+        setActiveCategory();
+        renderGrid();
+      });
+    })();
+  </script>
+</body>
+</html>

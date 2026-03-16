@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>选择门店 - 下发屏保</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="assets/common.css" />
+  <script>
+    tailwind.config = { theme: { extend: { colors: { primary: '#1677ff', 'sidebar-bg': '#fafafa', 'sidebar-active': '#e6f4ff' }, borderRadius: { ant: '6px' } } } };
+  </script>
+</head>
+<body class="bg-white text-gray-900 antialiased">
+  <div class="min-h-screen flex flex-col">
+    <!-- 步骤顶栏 -->
+    <header class="flex-shrink-0 border-b border-gray-200 bg-white">
+      <div class="flex items-center justify-between px-4 py-3">
+        <div class="flex items-center gap-2">
+          <a href="kiosk-theme-list.html" class="p-2 rounded hover:bg-gray-100 text-gray-600" aria-label="返回">←</a>
+          <h1 class="text-base font-semibold">选择门店</h1>
+        </div>
+        <a href="distribute-time.html" id="nextBtn" class="px-4 py-2 rounded-ant text-gray-400 cursor-not-allowed pointer-events-none">Next →</a>
+        <a href="distribute-time.html" id="nextBtnActive" class="hidden px-4 py-2 rounded-ant bg-primary text-white hover:bg-blue-600">Next →</a>
+      </div>
+      <div class="step-progress w-full">
+        <div class="step-progress-inner" style="width: 33%"></div>
+      </div>
+    </header>
+    <div class="flex-1 flex min-h-0">
+      <!-- 左侧：门店列表 -->
+      <div class="flex-1 flex flex-col min-w-0 border-r border-gray-100 p-4">
+        <h2 class="text-sm font-medium text-gray-800 mb-3">选择门店</h2>
+        <div class="flex flex-wrap gap-2 mb-4">
+          <div class="relative flex-1 min-w-[180px] max-w-xs">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+            <input type="text" id="searchStore" placeholder="Q MID" class="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-ant text-sm focus:outline-none focus:border-primary" />
+          </div>
+          <button type="button" class="px-3 py-2 border border-gray-200 rounded-ant text-sm hover:bg-gray-50">重置</button>
+        </div>
+        <div class="border border-gray-200 rounded-ant overflow-hidden flex-1 min-h-0 flex flex-col">
+          <table class="w-full text-sm border-collapse">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="text-left p-2 w-10"><input type="checkbox" id="checkAll" class="rounded text-primary" /></th>
+                <th class="text-left p-2">门店名称</th>
+                <th class="text-left p-2">MID</th>
+                <th class="text-left p-2">地址</th>
+                <th class="text-left p-2">邮编</th>
+              </tr>
+            </thead>
+            <tbody id="storeTableBody">
+              <tr class="border-t border-gray-100 hover:bg-gray-50">
+                <td class="p-2"><input type="checkbox" class="store-checkbox rounded text-primary" data-name="Old Neighbourhood Traditional Snack Shop" data-mid="N789234560" /></td>
+                <td class="p-2">Old Neighbourhood Traditional Snack Shop</td>
+                <td class="p-2">N789234560</td>
+                <td class="p-2">New Port, RI</td>
+                <td class="p-2">89765-23</td>
+              </tr>
+              <tr class="border-t border-gray-100 hover:bg-gray-50">
+                <td class="p-2"><input type="checkbox" class="store-checkbox rounded text-primary" data-name="Li's Roast Meat Rice Bowl" data-mid="K567890123" /></td>
+                <td class="p-2">Li's Roast Meat Rice Bowl</td>
+                <td class="p-2">K567890123</td>
+                <td class="p-2">Beacon, NY</td>
+                <td class="p-2">23567-98</td>
+              </tr>
+              <tr class="border-t border-gray-100 hover:bg-gray-50">
+                <td class="p-2"><input type="checkbox" class="store-checkbox rounded text-primary" data-name="Menusifu Test" data-mid="P901234567" /></td>
+                <td class="p-2">Menusifu Test</td>
+                <td class="p-2">P901234567</td>
+                <td class="p-2">Paradise Valley, AZ</td>
+                <td class="p-2">98765-34</td>
+              </tr>
+              <tr class="border-t border-gray-100 hover:bg-gray-50">
+                <td class="p-2"><input type="checkbox" class="store-checkbox rounded text-primary" data-name="Three Visits Spicy Noodles" data-mid="R123456789" /></td>
+                <td class="p-2">Three Visits Spicy Noodles (Technology Road Branch)</td>
+                <td class="p-2">R123456789</td>
+                <td class="p-2">Asheville, NC</td>
+                <td class="p-2">34567-89</td>
+              </tr>
+              <tr class="border-t border-gray-100 hover:bg-gray-50">
+                <td class="p-2"><input type="checkbox" class="store-checkbox rounded text-primary" data-name="Menusifu" data-mid="T345678901" /></td>
+                <td class="p-2">Menusifu</td>
+                <td class="p-2">T345678901</td>
+                <td class="p-2">Carmel-by-the-Sea, CA</td>
+                <td class="p-2">76543-90</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="flex items-center justify-between mt-2 text-sm text-gray-500">
+          <span>Total 88 items</span>
+          <div class="flex items-center gap-1">
+            <button type="button" class="p-1.5 rounded hover:bg-gray-100 disabled:opacity-50" disabled>&lt;</button>
+            <button type="button" class="px-2 py-1 rounded bg-primary text-white text-sm">1</button>
+            <button type="button" class="px-2 py-1 rounded hover:bg-gray-100 text-sm">2</button>
+            <span class="px-1">...</span>
+            <button type="button" class="px-2 py-1 rounded hover:bg-gray-100 text-sm">10</button>
+            <button type="button" class="p-1.5 rounded hover:bg-gray-100">&gt;</button>
+          </div>
+        </div>
+      </div>
+      <!-- 右侧：已选门店 -->
+      <div class="w-80 flex-shrink-0 flex flex-col p-4 border-l border-gray-100">
+        <h2 class="text-sm font-medium text-gray-800 mb-3">已选门店: <span id="selectedCount">0</span></h2>
+        <div id="selectedEmpty" class="flex-1 flex flex-col items-center justify-center py-12 text-gray-400">
+          <div class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center text-2xl mb-2">🏪</div>
+          <p class="text-sm">请选择门店</p>
+        </div>
+        <ul id="selectedList" class="hidden flex-1 overflow-auto space-y-2 text-sm"></ul>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function() {
+      var params = new URLSearchParams(location.search);
+      var themeId = params.get('themeId');
+      if (themeId) {
+        try { localStorage.setItem('current_theme_id_for_distribute', themeId); } catch (err) {}
+      }
+    })();
+    var selectedCount = 0;
+    var nextBtn = document.getElementById('nextBtn');
+    var nextBtnActive = document.getElementById('nextBtnActive');
+    var selectedCountEl = document.getElementById('selectedCount');
+    var selectedEmpty = document.getElementById('selectedEmpty');
+    var selectedList = document.getElementById('selectedList');
+
+    function escapeHtml(s) {
+      if (!s) return '';
+      var d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    function updateSelected() {
+      var checked = document.querySelectorAll('.store-checkbox:checked');
+      selectedCount = checked.length;
+      var items = [].map.call(checked, function(cb) {
+        return { name: cb.getAttribute('data-name') || '', mid: cb.getAttribute('data-mid') || '' };
+      });
+      selectedCountEl.textContent = selectedCount;
+      if (selectedCount === 0) {
+        selectedEmpty.classList.remove('hidden');
+        selectedList.classList.add('hidden');
+        nextBtn.classList.remove('hidden');
+        nextBtnActive.classList.add('hidden');
+        nextBtn.classList.add('pointer-events-none', 'cursor-not-allowed');
+      } else {
+        selectedEmpty.classList.add('hidden');
+        selectedList.classList.remove('hidden');
+        selectedList.innerHTML = items.map(function(item) {
+          return '<li class="p-2 bg-gray-50 rounded-ant">' +
+            '<div class="font-medium text-gray-800">' + escapeHtml(item.name) + '</div>' +
+            '<div class="text-gray-500 text-xs mt-0.5">MID: ' + escapeHtml(item.mid) + '</div>' +
+            '</li>';
+        }).join('');
+        nextBtn.classList.add('hidden');
+        nextBtnActive.classList.remove('hidden');
+      }
+    }
+
+    document.querySelectorAll('.store-checkbox').forEach(function(cb) {
+      cb.addEventListener('change', updateSelected);
+    });
+    document.getElementById('checkAll').addEventListener('change', function() {
+      document.querySelectorAll('.store-checkbox').forEach(function(cb) { cb.checked = this.checked; }, this);
+      updateSelected();
+    });
+    updateSelected();
+
+    document.getElementById('nextBtnActive').addEventListener('click', function(e) {
+      e.preventDefault();
+      var checked = document.querySelectorAll('.store-checkbox:checked');
+      var stores = [].map.call(checked, function(cb) {
+        return { name: cb.getAttribute('data-name') || '', mid: cb.getAttribute('data-mid') || '' };
+      });
+      try {
+        localStorage.setItem('selected_stores_for_distribute', JSON.stringify(stores));
+      } catch (err) {}
+      window.location.href = 'distribute-time.html';
+    });
+  </script>
+</body>
+</html>

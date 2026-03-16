@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>编辑主题 - Kiosk屏保</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="assets/common.css" />
+  <script src="assets/toast.js"></script>
+  <script>
+    tailwind.config = { theme: { extend: { colors: { primary: '#1677ff', 'sidebar-bg': '#fafafa', 'sidebar-active': '#e6f4ff' }, borderRadius: { ant: '6px' } } } };
+  </script>
+</head>
+<body class="bg-white text-gray-900 antialiased">
+  <div class="app-layout flex min-h-screen">
+    <aside class="sidebar flex-shrink-0 flex flex-col w-60">
+      <div class="p-4 border-b border-gray-100 flex items-center gap-2">
+        <div class="w-8 h-8 rounded bg-amber-400 flex items-center justify-center text-white font-bold">M</div>
+        <span class="font-medium">MenuSifu</span>
+        <div class="ml-auto flex gap-1">
+          <button type="button" class="p-1 rounded hover:bg-gray-100" aria-label="文档">📄</button>
+          <button type="button" class="p-1 rounded hover:bg-gray-100" aria-label="全屏">⊞</button>
+        </div>
+      </div>
+      <nav class="flex-1 p-3 space-y-1 overflow-auto">
+        <a href="material.html" class="menu-item px-3 py-2 text-gray-600 flex items-center justify-between rounded-ant hover:bg-gray-100"><span>图片素材</span></a>
+        <div class="nav-group">
+          <div class="nav-group-title menu-item px-3 py-2 text-gray-600 flex items-center justify-between cursor-pointer hover:bg-gray-100 rounded-ant" onclick="this.parentElement.classList.toggle('collapsed')">
+            <span>配置中心</span>
+            <span class="nav-arrow text-xs transition-transform">⌄</span>
+          </div>
+          <div class="nav-group-items pl-3 space-y-0.5">
+            <a href="kiosk-theme-list.html" class="menu-item active px-3 py-2 flex items-center rounded-ant bg-sidebar-active text-primary font-medium">Kiosk屏保</a>
+          </div>
+        </div>
+      </nav>
+      <div class="p-3 border-t border-gray-100 flex items-center gap-2">
+        <button type="button" class="p-1.5 rounded hover:bg-gray-100">📄</button>
+        <span class="w-px h-4 bg-gray-200"></span>
+        <button type="button" class="p-1.5 rounded hover:bg-gray-100">👤</button>
+        <a href="#" class="flex-1 flex items-center justify-between text-gray-600 text-sm"><span>M's Coffee</span><span>→</span></a>
+      </div>
+    </aside>
+    <main class="main-content flex-1 flex flex-col min-w-0">
+      <header class="flex items-center justify-between pb-4 mb-4 border-b-2 border-primary">
+        <div class="flex items-center gap-3">
+          <a href="kiosk-theme-list.html" class="p-2 rounded hover:bg-gray-100 text-gray-600" aria-label="返回">←</a>
+          <h1 class="text-lg font-semibold">编辑主题</h1>
+        </div>
+        <button type="submit" form="editForm" class="px-4 py-2 rounded-ant bg-primary text-white hover:bg-blue-600">确认</button>
+      </header>
+      <form id="editForm" class="max-w-3xl space-y-8">
+        <input type="hidden" id="editThemeId" name="id" value="" />
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">主题名称</label>
+          <input type="text" id="editThemeName" name="name" required placeholder="主题名称 *" class="w-full px-3 py-2 border border-gray-200 rounded-ant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">竖版</label>
+          <div class="flex gap-4 mb-2">
+            <label class="inline-flex items-center gap-2 cursor-pointer"><input type="radio" name="portraitType" value="image" checked class="text-primary" /><span>图片</span></label>
+            <label class="inline-flex items-center gap-2 cursor-pointer"><input type="radio" name="portraitType" value="video" class="text-primary" /><span>视频</span></label>
+          </div>
+          <input type="file" id="filePortrait" accept="image/*" multiple class="hidden" />
+          <div class="flex flex-wrap gap-4 items-start">
+            <div id="portraitPreviews" class="flex flex-wrap gap-3 items-start"></div>
+            <div id="portraitHints" class="text-sm text-gray-500 space-y-1 flex-shrink-0"></div>
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">横版</label>
+          <div class="flex gap-4 mb-2">
+            <label class="inline-flex items-center gap-2 cursor-pointer"><input type="radio" name="landscapeType" value="image" checked class="text-primary" /><span>图片</span></label>
+            <label class="inline-flex items-center gap-2 cursor-pointer"><input type="radio" name="landscapeType" value="video" class="text-primary" /><span>视频</span></label>
+          </div>
+          <input type="file" id="fileLandscape" accept="image/*" multiple class="hidden" />
+          <div class="flex flex-wrap gap-4 items-start">
+            <div id="landscapePreviews" class="flex flex-wrap gap-3 items-start"></div>
+            <div id="landscapeHints" class="text-sm text-gray-500 space-y-1 flex-shrink-0"></div>
+          </div>
+        </div>
+      </form>
+    </main>
+  </div>
+  <script>
+    (function() {
+      var STORAGE_KEY = 'kiosk_themes';
+      var params = new URLSearchParams(location.search);
+      var id = params.get('id');
+      var portraitList = [];
+      var landscapeList = [];
+
+      function getThemes() {
+        try {
+          var raw = localStorage.getItem(STORAGE_KEY);
+          return raw ? JSON.parse(raw) : [];
+        } catch (e) {
+          return [];
+        }
+      }
+
+      function saveThemes(list) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+      }
+
+      if (!id) {
+        window.location.href = 'kiosk-theme-list.html';
+        throw new Error('missing id');
+      }
+
+      var list = getThemes();
+      var theme = list.find(function(t) { return t.id === id; });
+      if (!theme) {
+        window.location.href = 'kiosk-theme-list.html';
+        throw new Error('theme not found');
+      }
+
+      document.getElementById('editThemeId').value = theme.id;
+      document.getElementById('editThemeName').value = theme.name || '';
+
+      if (theme.portraitImages && theme.portraitImages.length) {
+        portraitList = theme.portraitImages.map(function(img) {
+          var dataUrl = img.dataUrl || img;
+          return { url: dataUrl, dataUrl: dataUrl, type: img.type || 'image' };
+        });
+      }
+      if (theme.landscapeImages && theme.landscapeImages.length) {
+        landscapeList = theme.landscapeImages.map(function(img) {
+          var dataUrl = img.dataUrl || img;
+          return { url: dataUrl, dataUrl: dataUrl, type: img.type || 'image' };
+        });
+      }
+
+      function getMediaType(role) {
+        var radioName = role === 'portrait' ? 'portraitType' : 'landscapeType';
+        var checked = document.querySelector('input[name="' + radioName + '"]:checked');
+        return checked ? checked.value : 'image';
+      }
+
+      function getMaxCount(role) {
+        return getMediaType(role) === 'video' ? 1 : 5;
+      }
+
+      function updateHints(role) {
+        var hintsId = role === 'portrait' ? 'portraitHints' : 'landscapeHints';
+        var container = document.getElementById(hintsId);
+        var mediaType = getMediaType(role);
+        var isPortrait = role === 'portrait';
+        var size = isPortrait ? '1080*1920px' : '1920*1080px';
+        var html = '<p>建议尺寸: ' + size + '</p>';
+        if (mediaType === 'video') {
+          html += '<p>视频格式: MP4、AVI等主流</p>';
+          html += '<p>视频大小(建议10M以内)，最多1个</p>';
+        } else {
+          html += '<p>图片格式: JPEG、PNG、JPG、GIF</p>';
+          html += '<p>图片大小(建议1M以内)，最多5张</p>';
+        }
+        container.innerHTML = html;
+      }
+
+      function updateAccept(role) {
+        var inputId = role === 'portrait' ? 'filePortrait' : 'fileLandscape';
+        var input = document.getElementById(inputId);
+        var type = getMediaType(role);
+        input.accept = type === 'video' ? 'video/*' : 'image/*';
+        input.multiple = type !== 'video';
+      }
+
+      function renderPreviews(role) {
+        var list = role === 'portrait' ? portraitList : landscapeList;
+        var containerId = role === 'portrait' ? 'portraitPreviews' : 'landscapePreviews';
+        var inputId = role === 'portrait' ? 'filePortrait' : 'fileLandscape';
+        var container = document.getElementById(containerId);
+        var input = document.getElementById(inputId);
+        var isPortrait = role === 'portrait';
+        var boxClass = isPortrait ? 'w-24 h-32' : 'w-32 h-24';
+        var html = '';
+        list.forEach(function(item, index) {
+          var mediaHtml = '';
+          var mediaSrc = item.url || item.dataUrl;
+          if (item.type === 'video') {
+            mediaHtml = '<video src="' + mediaSrc + '" class="w-full h-full object-cover" muted></video>' +
+              '<div class="absolute inset-0 flex items-center justify-center pointer-events-none"><span class="w-8 h-8 bg-black/50 rounded-full flex items-center justify-center text-white text-xs">▶</span></div>';
+          } else {
+            mediaHtml = '<img src="' + mediaSrc + '" alt="预览" class="w-full h-full object-cover" />';
+          }
+          html += '<div class="relative group flex-shrink-0 rounded-ant overflow-hidden border border-gray-200 bg-gray-50 ' + boxClass + '">' +
+            mediaHtml +
+            '<button type="button" class="img-remove absolute top-1 right-1 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center text-sm hover:bg-red-500 transition-colors" data-role="' + role + '" data-index="' + index + '" aria-label="删除">×</button>' +
+            '</div>';
+        });
+        var maxCount = getMaxCount(role);
+        if (list.length < maxCount) {
+          html += '<div class="upload-slot flex-shrink-0 border-2 border-dashed border-gray-200 rounded-ant flex items-center justify-center cursor-pointer hover:border-primary hover:bg-blue-50/50 transition-colors ' + boxClass + '" data-role="' + role + '">' +
+            '<span class="text-2xl text-gray-400">+</span>' +
+            '</div>';
+        }
+        container.innerHTML = html;
+        container.querySelectorAll('.upload-slot').forEach(function(el) {
+          el.addEventListener('click', function() { input.click(); });
+        });
+        container.querySelectorAll('.img-remove').forEach(function(btn) {
+          btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            var r = btn.getAttribute('data-role');
+            var i = parseInt(btn.getAttribute('data-index'), 10);
+            if (r === 'portrait') {
+              portraitList.splice(i, 1);
+              renderPreviews('portrait');
+            } else {
+              landscapeList.splice(i, 1);
+              renderPreviews('landscape');
+            }
+          });
+        });
+      }
+
+      function addFiles(role, files) {
+        var list = role === 'portrait' ? portraitList : landscapeList;
+        var maxCount = getMaxCount(role);
+        var mediaType = getMediaType(role);
+        for (var i = 0; i < files.length && list.length < maxCount; i++) {
+          var file = files[i];
+          if (mediaType === 'video') {
+            if (!file.type || !file.type.startsWith('video/')) continue;
+          } else {
+            if (!file.type || !file.type.startsWith('image/')) continue;
+          }
+          list.push({ url: URL.createObjectURL(file), file: file, type: file.type.startsWith('video/') ? 'video' : 'image' });
+        }
+        if (role === 'portrait') portraitList = list; else landscapeList = list;
+        renderPreviews(role);
+      }
+
+      document.getElementById('filePortrait').addEventListener('change', function() {
+        if (this.files && this.files.length) addFiles('portrait', Array.prototype.slice.call(this.files));
+        this.value = '';
+      });
+      document.getElementById('fileLandscape').addEventListener('change', function() {
+        if (this.files && this.files.length) addFiles('landscape', Array.prototype.slice.call(this.files));
+        this.value = '';
+      });
+
+      renderPreviews('portrait');
+      renderPreviews('landscape');
+      updateAccept('portrait');
+      updateAccept('landscape');
+      updateHints('portrait');
+      updateHints('landscape');
+
+      document.querySelectorAll('input[name="portraitType"]').forEach(function(radio) {
+        radio.addEventListener('change', function() {
+          portraitList.forEach(function(item) { if (item.url && item.file) URL.revokeObjectURL(item.url); });
+          portraitList = [];
+          updateAccept('portrait');
+          updateHints('portrait');
+          renderPreviews('portrait');
+        });
+      });
+      document.querySelectorAll('input[name="landscapeType"]').forEach(function(radio) {
+        radio.addEventListener('change', function() {
+          landscapeList.forEach(function(item) { if (item.url && item.file) URL.revokeObjectURL(item.url); });
+          landscapeList = [];
+          updateAccept('landscape');
+          updateHints('landscape');
+          renderPreviews('landscape');
+        });
+      });
+
+      function compressImage(file, maxWidth, maxHeight, quality) {
+        return new Promise(function(resolve, reject) {
+          var img = new Image();
+          img.onload = function() {
+            var canvas = document.createElement('canvas');
+            var w = img.width;
+            var h = img.height;
+            if (w > maxWidth) { h = h * maxWidth / w; w = maxWidth; }
+            if (h > maxHeight) { w = w * maxHeight / h; h = maxHeight; }
+            canvas.width = w;
+            canvas.height = h;
+            var ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            var dataUrl = canvas.toDataURL('image/jpeg', quality);
+            URL.revokeObjectURL(img.src);
+            resolve(dataUrl);
+          };
+          img.onerror = reject;
+          img.src = URL.createObjectURL(file);
+        });
+      }
+
+      function fileToDataUrl(file) {
+        return new Promise(function(resolve, reject) {
+          var reader = new FileReader();
+          reader.onload = function() { resolve(reader.result); };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      }
+
+      function processMedia(item, isPortrait) {
+        if (item.dataUrl && !item.file) return Promise.resolve({ dataUrl: item.dataUrl, type: item.type || 'image' });
+        if (!item.file) return Promise.resolve({ dataUrl: item.url, type: item.type || 'image' });
+        if (item.type === 'video') {
+          return fileToDataUrl(item.file).then(function(dataUrl) {
+            return { dataUrl: dataUrl, type: 'video' };
+          });
+        }
+        var maxW = isPortrait ? 540 : 960;
+        var maxH = isPortrait ? 960 : 540;
+        return compressImage(item.file, maxW, maxH, 0.7).then(function(dataUrl) {
+          return { dataUrl: dataUrl, type: 'image' };
+        });
+      }
+
+      document.getElementById('editForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        var name = document.getElementById('editThemeName').value.trim();
+        if (!name) {
+          Toast.warning('请填写主题名称');
+          return;
+        }
+        if (portraitList.length === 0 && landscapeList.length === 0) {
+          Toast.warning('请至少上传一个竖版或横版的屏保素材');
+          return;
+        }
+        var portraitPromises = portraitList.map(function(item) {
+          return processMedia(item, true);
+        });
+        var landscapePromises = landscapeList.map(function(item) {
+          return processMedia(item, false);
+        });
+        Promise.all([].concat(portraitPromises, landscapePromises)).then(function(allMedia) {
+          var pLen = portraitList.length;
+          var portraitImages = allMedia.slice(0, pLen);
+          var landscapeImages = allMedia.slice(pLen, pLen + landscapeList.length);
+          try {
+            var list = getThemes();
+            var idx = list.findIndex(function(t) { return t.id === id; });
+            if (idx >= 0) {
+              list[idx].name = name;
+              list[idx].portraitImages = portraitImages;
+              list[idx].landscapeImages = landscapeImages;
+              saveThemes(list);
+            }
+            window.location.href = 'kiosk-theme-list.html';
+          } catch (err) {
+            console.error('保存失败:', err);
+            Toast.error('保存失败，可能是存储空间不足。请尝试删除一些旧的屏保主题后重试。');
+          }
+        }).catch(function(err) {
+          console.error('图片处理失败:', err);
+          Toast.error('素材处理失败，请重试');
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

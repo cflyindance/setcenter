@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>选择展示生效时间 - 下发屏保</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="assets/common.css" />
+  <script src="assets/toast.js"></script>
+  <script>
+    tailwind.config = { theme: { extend: { colors: { primary: '#1677ff', 'sidebar-bg': '#fafafa', 'sidebar-active': '#e6f4ff' }, borderRadius: { ant: '6px' } } } };
+  </script>
+</head>
+<body class="bg-white text-gray-900 antialiased">
+  <div class="min-h-screen flex flex-col">
+    <header class="flex-shrink-0 border-b border-gray-200 bg-white">
+      <div class="flex items-center justify-between px-4 py-3">
+        <div class="flex items-center gap-2">
+          <a href="distribute-time.html" class="p-2 rounded hover:bg-gray-100 text-gray-600" aria-label="返回">←</a>
+          <h1 class="text-base font-semibold">选择展示生效时间</h1>
+        </div>
+        <a href="kiosk-theme-list.html" id="submitBtn" class="px-4 py-2 rounded-ant bg-primary text-white hover:bg-blue-600">完成</a>
+      </div>
+      <div class="step-progress w-full">
+        <div class="step-progress-inner" style="width: 100%"></div>
+      </div>
+    </header>
+    <main class="flex-1 p-6 max-w-2xl mx-auto w-full">
+      <h2 class="text-base font-semibold text-gray-800 mb-4">选择展示生效时间</h2>
+      <div class="flex items-start gap-2 p-3 rounded-ant bg-blue-50 text-blue-800 text-sm mb-6">
+        <span aria-hidden="true">ℹ️</span>
+        <p>During peak times, the update wait time may be longer. Please try to perform updates (scheduled) during off-peak times.</p>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <span class="block text-sm font-medium text-gray-700 mb-2">生效时间</span>
+          <div class="flex gap-4">
+            <label class="inline-flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="effectiveType" value="custom" checked class="text-primary" />
+              <span>自定义</span>
+            </label>
+            <label class="inline-flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="effectiveType" value="now" class="text-primary" />
+              <span>立即</span>
+            </label>
+          </div>
+        </div>
+        <div id="timePickerWrap" class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">开始时间 <span class="text-red-500">*</span></label>
+            <div class="flex flex-wrap gap-2 items-center">
+              <input type="date" id="startDateInput" class="flex-1 min-w-[140px] px-3 py-2 border border-gray-200 rounded-ant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" title="选择年月日" />
+              <input type="time" id="startTimeInput" class="w-28 px-3 py-2 border border-gray-200 rounded-ant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" title="选择时分" />
+              <button type="button" id="btnNowStart" class="px-3 py-2 border border-gray-200 rounded-ant hover:bg-gray-50 text-sm">Now</button>
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">结束时间 <span class="text-red-500">*</span></label>
+            <div class="flex flex-wrap gap-2 items-center">
+              <input type="date" id="endDateInput" class="flex-1 min-w-[140px] px-3 py-2 border border-gray-200 rounded-ant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" title="选择年月日" />
+              <input type="time" id="endTimeInput" class="w-28 px-3 py-2 border border-gray-200 rounded-ant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" title="选择时分" />
+              <button type="button" id="btnNowEnd" class="px-3 py-2 border border-gray-200 rounded-ant hover:bg-gray-50 text-sm">Now</button>
+            </div>
+          </div>
+          <p class="text-gray-500 text-xs">点击日期框选择年/月/日，点击时间框选择时/分</p>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script>
+    (function() {
+      var wrap = document.getElementById('timePickerWrap');
+      var startDateInput = document.getElementById('startDateInput');
+      var startTimeInput = document.getElementById('startTimeInput');
+      var endDateInput = document.getElementById('endDateInput');
+      var endTimeInput = document.getElementById('endTimeInput');
+      var customRadio = document.querySelector('input[name="effectiveType"][value="custom"]');
+      var nowRadio = document.querySelector('input[name="effectiveType"][value="now"]');
+
+      var distributeDate = '';
+      var distributeTime = '';
+      try {
+        distributeDate = localStorage.getItem('distribute_date') || '';
+        distributeTime = localStorage.getItem('distribute_time') || '';
+      } catch (e) {}
+
+      function applyStartMin() {
+        if (!startDateInput || !startTimeInput) return;
+        if (distributeDate) {
+          startDateInput.setAttribute('min', distributeDate);
+          if (startDateInput.value === distributeDate && distributeTime) {
+            startTimeInput.setAttribute('min', distributeTime);
+          } else {
+            startTimeInput.removeAttribute('min');
+          }
+        }
+      }
+      if (startDateInput) {
+        startDateInput.addEventListener('change', function() { applyStartMin(); applyEndMin(); });
+        startDateInput.addEventListener('input', function() { applyStartMin(); applyEndMin(); });
+      }
+      if (startTimeInput) {
+        startTimeInput.addEventListener('change', applyEndMin);
+        startTimeInput.addEventListener('input', applyEndMin);
+      }
+
+      function applyEndMin() {
+        if (!startDateInput || !startTimeInput || !endDateInput || !endTimeInput) return;
+        var startD = startDateInput.value;
+        var startT = startTimeInput.value;
+        if (!startD) return;
+        endDateInput.setAttribute('min', startD);
+        if (endDateInput.value === startD && startT) {
+          endTimeInput.setAttribute('min', startT);
+        } else {
+          endTimeInput.removeAttribute('min');
+        }
+      }
+      if (endDateInput) {
+        endDateInput.addEventListener('change', applyEndMin);
+        endDateInput.addEventListener('input', applyEndMin);
+      }
+
+      function toggleTimePicker() {
+        if (customRadio && customRadio.checked) {
+          wrap.classList.remove('hidden');
+        } else {
+          wrap.classList.add('hidden');
+        }
+      }
+      if (customRadio) customRadio.addEventListener('change', toggleTimePicker);
+      if (nowRadio) nowRadio.addEventListener('change', toggleTimePicker);
+      toggleTimePicker();
+
+      function formatDate(d) {
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      }
+      function formatTime(d) {
+        return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+      }
+      function setStartNow() {
+        var d = new Date();
+        var dStr = formatDate(d);
+        var tStr = formatTime(d);
+        if (distributeDate && (dStr < distributeDate || (dStr === distributeDate && distributeTime && tStr < distributeTime))) {
+          dStr = distributeDate;
+          tStr = distributeTime || tStr;
+        }
+        if (startDateInput) startDateInput.value = dStr;
+        if (startTimeInput) startTimeInput.value = tStr;
+        applyStartMin();
+      }
+      function setEndNow() {
+        var startD = startDateInput ? startDateInput.value : '';
+        var startT = startTimeInput ? startTimeInput.value : '';
+        var d = new Date();
+        var dStr = formatDate(d);
+        var tStr = formatTime(d);
+        if (startD && (dStr < startD || (dStr === startD && startT && tStr < startT))) {
+          dStr = startD;
+          tStr = startT || tStr;
+        }
+        if (endDateInput) endDateInput.value = dStr;
+        if (endTimeInput) endTimeInput.value = tStr;
+        applyEndMin();
+      }
+      if (document.getElementById('btnNowStart')) document.getElementById('btnNowStart').addEventListener('click', setStartNow);
+      if (document.getElementById('btnNowEnd')) document.getElementById('btnNowEnd').addEventListener('click', setEndNow);
+
+      if (startDateInput && !startDateInput.value) {
+        if (distributeDate && distributeTime) {
+          startDateInput.value = distributeDate;
+          startTimeInput.value = distributeTime;
+        } else {
+          setStartNow();
+        }
+        applyStartMin();
+      }
+      if (endDateInput && !endDateInput.value) setEndNow();
+
+      applyStartMin();
+      applyEndMin();
+
+      document.getElementById('submitBtn').addEventListener('click', function(e) {
+        e.preventDefault();
+        if (customRadio && customRadio.checked && startDateInput && startTimeInput && endDateInput && endTimeInput) {
+          var startD = startDateInput.value;
+          var startT = startTimeInput.value;
+          var endD = endDateInput.value;
+          var endT = endTimeInput.value;
+          if (distributeDate && distributeTime) {
+            if (startD < distributeDate || (startD === distributeDate && startT < distributeTime)) {
+              Toast.warning('生效开始时间不得早于下发时间，请重新选择。');
+              return;
+            }
+          }
+          if (endD < startD || (endD === startD && endT < startT)) {
+            Toast.warning('结束时间不得早于开始时间，请重新选择。');
+            return;
+          }
+        }
+        if (confirm('确认下发屏保到已选门店？')) {
+          var themeId = '';
+          try { themeId = localStorage.getItem('current_theme_id_for_distribute') || ''; } catch (e) {}
+          if (themeId) {
+            var raw = localStorage.getItem('kiosk_themes');
+            var themes = raw ? JSON.parse(raw) : [];
+            var theme = themes.filter(function(t) { return t.id === themeId; })[0];
+            if (theme) {
+              var distDate = localStorage.getItem('distribute_date') || '';
+              var distTime = localStorage.getItem('distribute_time') || '';
+              theme.distributeTime = (distDate && distTime) ? distDate.replace(/-/g, '/') + ' ' + distTime : '--';
+              var nowRadio = document.querySelector('input[name="effectiveType"][value="now"]');
+              if (nowRadio && nowRadio.checked) {
+                theme.effectTime = '立即生效';
+              } else if (startDateInput && startTimeInput && endDateInput && endTimeInput) {
+                var sD = startDateInput.value.replace(/-/g, '/');
+                var sT = startTimeInput.value;
+                var eD = endDateInput.value.replace(/-/g, '/');
+                var eT = endTimeInput.value;
+                theme.effectTime = (sD && sT && eD && eT) ? sD + ' ' + sT + ' - ' + eD + ' ' + eT : (theme.effectTime || '--');
+              }
+              var selectedStores = [];
+              try {
+                selectedStores = JSON.parse(localStorage.getItem('selected_stores_for_distribute') || '[]');
+              } catch (e) {}
+              var scenarioRand = Math.random();
+              var scenario;
+              if (scenarioRand < 0.2) {
+                scenario = 'all_success';
+              } else if (scenarioRand < 0.5) {
+                scenario = 'partial_fail';
+              } else if (scenarioRand < 0.7) {
+                scenario = 'all_fail';
+              } else {
+                scenario = 'pending';
+              }
+              theme.distributedStores = selectedStores.map(function(store, idx) {
+                var status;
+                if (scenario === 'all_success') {
+                  status = 'success';
+                } else if (scenario === 'all_fail') {
+                  status = 'failed';
+                } else if (scenario === 'partial_fail') {
+                  status = (idx % 2 === 0) ? 'success' : 'failed';
+                } else {
+                  var r = Math.random();
+                  status = r < 0.4 ? 'success' : (r < 0.7 ? 'pending' : 'failed');
+                }
+                return { name: store.name, mid: store.mid, status: status };
+              });
+              localStorage.setItem('kiosk_themes', JSON.stringify(themes));
+              try { localStorage.removeItem('selected_stores_for_distribute'); } catch (e) {}
+            }
+            try { localStorage.removeItem('current_theme_id_for_distribute'); } catch (e) {}
+          }
+          window.location.href = 'kiosk-theme-list.html?done=1';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

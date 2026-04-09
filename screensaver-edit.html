@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>编辑主题 - Kiosk屏保</title>
+  <title>编辑主题 - 屏保</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="assets/common.css" />
   <script src="assets/toast.js"></script>
@@ -26,11 +26,11 @@
         <a href="material.html" class="menu-item px-3 py-2 text-gray-600 flex items-center justify-between rounded-ant hover:bg-gray-100"><span>图片素材</span></a>
         <div class="nav-group">
           <div class="nav-group-title menu-item px-3 py-2 text-gray-600 flex items-center justify-between cursor-pointer hover:bg-gray-100 rounded-ant" onclick="this.parentElement.classList.toggle('collapsed')">
-            <span>配置中心</span>
+            <span>前厅管理中心</span>
             <span class="nav-arrow text-xs transition-transform">⌄</span>
           </div>
           <div class="nav-group-items pl-3 space-y-0.5">
-            <a href="kiosk-theme-list.html" class="menu-item active px-3 py-2 flex items-center rounded-ant bg-sidebar-active text-primary font-medium">Kiosk屏保</a>
+            <a href="kiosk-theme-list.html" class="menu-item active px-3 py-2 flex items-center rounded-ant bg-sidebar-active text-primary font-medium">屏保</a>
           </div>
         </div>
       </nav>
@@ -56,7 +56,7 @@
           <input type="text" id="editThemeName" name="name" required placeholder="主题名称 *" class="w-full px-3 py-2 border border-gray-200 rounded-ant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" />
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">竖版</label>
+          <label class="block text-sm font-medium text-gray-700 mb-2">竖版 <span class="text-gray-400 font-normal">预览比例 9∶16</span></label>
           <div class="flex gap-4 mb-2">
             <label class="inline-flex items-center gap-2 cursor-pointer"><input type="radio" name="portraitType" value="image" checked class="text-primary" /><span>图片</span></label>
             <label class="inline-flex items-center gap-2 cursor-pointer"><input type="radio" name="portraitType" value="video" class="text-primary" /><span>视频</span></label>
@@ -68,7 +68,7 @@
           </div>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">横版</label>
+          <label class="block text-sm font-medium text-gray-700 mb-2">横版 <span class="text-gray-400 font-normal">预览比例 16∶9</span></label>
           <div class="flex gap-4 mb-2">
             <label class="inline-flex items-center gap-2 cursor-pointer"><input type="radio" name="landscapeType" value="image" checked class="text-primary" /><span>图片</span></label>
             <label class="inline-flex items-center gap-2 cursor-pointer"><input type="radio" name="landscapeType" value="video" class="text-primary" /><span>视频</span></label>
@@ -82,6 +82,72 @@
       </form>
     </main>
   </div>
+  <!-- 上传来源选择模态框 -->
+  <div id="uploadSourceModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-sm">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+        <h3 class="font-semibold text-gray-800">选择上传方式</h3>
+        <button type="button" id="uploadSourceClose" class="w-8 h-8 rounded hover:bg-gray-100 flex items-center justify-center text-gray-500">×</button>
+      </div>
+      <div class="p-4 space-y-3">
+        <div class="border border-gray-200 rounded-ant hover:border-primary transition-colors">
+          <button type="button" id="chooseLocalBtn" class="w-full p-4 text-left hover:bg-blue-50/50 transition-colors rounded-t-ant">
+            <div class="flex items-center gap-3">
+              <span class="text-2xl">📁</span>
+              <div>
+                <div class="font-medium text-gray-800">本地上传</div>
+                <div class="text-sm text-gray-500">从电脑选择文件上传</div>
+              </div>
+            </div>
+          </button>
+          <div id="saveToLibraryWrap" class="hidden px-4 py-3 border-t border-gray-100 bg-gray-50/50 rounded-b-ant">
+            <label class="flex items-center gap-2 cursor-pointer" onclick="event.stopPropagation();">
+              <input type="checkbox" id="saveToLibraryCheck" class="rounded text-primary" />
+              <span class="text-sm text-gray-600">同时保存到图片素材库</span>
+            </label>
+          </div>
+        </div>
+        <button type="button" id="chooseMaterialBtn" class="w-full p-4 border border-gray-200 rounded-ant hover:border-primary hover:bg-blue-50/50 transition-colors text-left">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl">🖼️</span>
+            <div>
+              <div class="font-medium text-gray-800">素材库选择</div>
+              <div class="text-sm text-gray-500">从图片素材库中选择</div>
+            </div>
+          </div>
+        </button>
+      </div>
+    </div>
+  </div>
+  <!-- 素材库选择模态框 -->
+  <div id="materialLibraryModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+        <h3 class="font-semibold text-gray-800">选择素材</h3>
+        <button type="button" id="materialLibraryClose" class="w-8 h-8 rounded hover:bg-gray-100 flex items-center justify-center text-gray-500">×</button>
+      </div>
+      <div class="flex flex-1 min-h-0">
+        <div class="w-40 border-r border-gray-200 p-3 overflow-auto">
+          <div id="materialCategoryList" class="space-y-1"></div>
+        </div>
+        <div class="flex-1 p-4 overflow-auto">
+          <div id="materialImageGrid" class="grid grid-cols-3 gap-4"></div>
+          <div id="materialEmptyState" class="hidden text-center py-12 text-gray-400">
+            <div class="text-4xl mb-2">📭</div>
+            <p>该分类暂无素材</p>
+            <p class="text-sm mt-2">请先在<a href="material.html" class="text-primary hover:underline">图片素材</a>中上传素材</p>
+          </div>
+        </div>
+      </div>
+      <div class="flex items-center justify-between px-4 py-3 border-t border-gray-200">
+        <span class="text-sm text-gray-500">已选择 <span id="selectedMaterialCount">0</span> 个素材</span>
+        <div class="flex gap-2">
+          <button type="button" id="materialCancelBtn" class="px-4 py-2 rounded-ant border border-gray-200 hover:bg-gray-50">取消</button>
+          <button type="button" id="materialConfirmBtn" class="px-4 py-2 rounded-ant bg-primary text-white hover:bg-blue-600">确定</button>
+        </div>
+      </div>
+    </div>
+  </div>
   <script>
     (function() {
       var STORAGE_KEY = 'kiosk_themes';
@@ -89,6 +155,9 @@
       var id = params.get('id');
       var portraitList = [];
       var landscapeList = [];
+      var currentUploadRole = null;
+      var selectedMaterials = [];
+      var currentMaterialCategory = null;
 
       function getThemes() {
         try {
@@ -173,18 +242,23 @@
         var container = document.getElementById(containerId);
         var input = document.getElementById(inputId);
         var isPortrait = role === 'portrait';
-        var boxClass = isPortrait ? 'w-24 h-32' : 'w-32 h-24';
+        /* 设备比例：竖版 1080×1920 = 9:16，横版 1920×1080 = 16:9 */
+        var boxClass = isPortrait ? 'w-[5.625rem] aspect-[9/16]' : 'w-[10rem] aspect-video';
+        var canDrag = list.length > 1;
         var html = '';
         list.forEach(function(item, index) {
           var mediaHtml = '';
           var mediaSrc = item.url || item.dataUrl;
           if (item.type === 'video') {
-            mediaHtml = '<video src="' + mediaSrc + '" class="w-full h-full object-cover" muted></video>' +
+            mediaHtml = '<video src="' + mediaSrc + '" class="w-full h-full object-cover muted" draggable="false"></video>' +
               '<div class="absolute inset-0 flex items-center justify-center pointer-events-none"><span class="w-8 h-8 bg-black/50 rounded-full flex items-center justify-center text-white text-xs">▶</span></div>';
           } else {
-            mediaHtml = '<img src="' + mediaSrc + '" alt="预览" class="w-full h-full object-cover" />';
+            mediaHtml = '<img src="' + mediaSrc + '" alt="预览" class="w-full h-full object-cover pointer-events-none" draggable="false" />';
           }
-          html += '<div class="relative group flex-shrink-0 rounded-ant overflow-hidden border border-gray-200 bg-gray-50 ' + boxClass + '">' +
+          var dragAttr = canDrag ? ' draggable="true"' : '';
+          var dragClass = canDrag ? ' cursor-grab active:cursor-grabbing preview-item' : '';
+          html += '<div class="relative group flex-shrink-0 rounded-ant overflow-hidden border border-gray-200 bg-gray-50 ' + boxClass + dragClass + '" data-role="' + role + '" data-index="' + index + '"' + dragAttr + '>' +
+            (canDrag ? '<span class="absolute bottom-1 left-1 w-5 h-5 rounded bg-black/50 flex items-center justify-center text-white text-xs pointer-events-none" title="拖动排序">⋮⋮</span>' : '') +
             mediaHtml +
             '<button type="button" class="img-remove absolute top-1 right-1 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center text-sm hover:bg-red-500 transition-colors" data-role="' + role + '" data-index="' + index + '" aria-label="删除">×</button>' +
             '</div>';
@@ -197,11 +271,15 @@
         }
         container.innerHTML = html;
         container.querySelectorAll('.upload-slot').forEach(function(el) {
-          el.addEventListener('click', function() { input.click(); });
+          el.addEventListener('click', function() {
+            currentUploadRole = role;
+            openUploadSourceModal();
+          });
         });
         container.querySelectorAll('.img-remove').forEach(function(btn) {
           btn.addEventListener('click', function(e) {
             e.preventDefault();
+            e.stopPropagation();
             var r = btn.getAttribute('data-role');
             var i = parseInt(btn.getAttribute('data-index'), 10);
             if (r === 'portrait') {
@@ -213,6 +291,52 @@
             }
           });
         });
+        if (canDrag) {
+          container.querySelectorAll('.preview-item').forEach(function(el) {
+            el.addEventListener('dragstart', function(e) {
+              e.dataTransfer.setData('text/plain', role + ':' + el.getAttribute('data-index'));
+              e.dataTransfer.effectAllowed = 'move';
+              el.classList.add('opacity-60', 'ring-2', 'ring-primary');
+            });
+            el.addEventListener('dragend', function(e) {
+              el.classList.remove('opacity-60', 'ring-2', 'ring-primary');
+            });
+            el.addEventListener('dragover', function(e) {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+              var target = e.currentTarget;
+              if (target.classList && !target.classList.contains('preview-item')) return;
+              target.classList.add('ring-2', 'ring-primary', 'ring-offset-1');
+            });
+            el.addEventListener('dragleave', function(e) {
+              if (!e.currentTarget.contains(e.relatedTarget)) {
+                e.currentTarget.classList.remove('ring-2', 'ring-primary', 'ring-offset-1');
+              }
+            });
+            el.addEventListener('drop', function(e) {
+              e.preventDefault();
+              e.currentTarget.classList.remove('ring-2', 'ring-primary', 'ring-offset-1');
+              var raw = e.dataTransfer.getData('text/plain');
+              if (!raw) return;
+              var parts = raw.split(':');
+              if (parts[0] !== role) return;
+              var fromIndex = parseInt(parts[1], 10);
+              var toIndex = parseInt(e.currentTarget.getAttribute('data-index'), 10);
+              if (fromIndex === toIndex) return;
+              movePreviewItem(role, fromIndex, toIndex);
+            });
+          });
+        }
+      }
+
+      function movePreviewItem(role, fromIndex, toIndex) {
+        var list = role === 'portrait' ? portraitList : landscapeList;
+        var item = list[fromIndex];
+        list.splice(fromIndex, 1);
+        var insertAt = fromIndex < toIndex ? toIndex - 1 : toIndex;
+        list.splice(insertAt, 0, item);
+        if (role === 'portrait') portraitList = list; else landscapeList = list;
+        renderPreviews(role);
       }
 
       function addFiles(role, files) {
@@ -239,6 +363,265 @@
       document.getElementById('fileLandscape').addEventListener('change', function() {
         if (this.files && this.files.length) addFiles('landscape', Array.prototype.slice.call(this.files));
         this.value = '';
+      });
+
+      // ========== 上传来源选择模态框 ==========
+      var uploadSourceModal = document.getElementById('uploadSourceModal');
+      var saveToLibraryWrap = document.getElementById('saveToLibraryWrap');
+      var saveToLibraryCheck = document.getElementById('saveToLibraryCheck');
+
+      function openUploadSourceModal() {
+        var mediaType = getMediaType(currentUploadRole);
+        if (mediaType === 'video') {
+          saveToLibraryWrap.classList.add('hidden');
+        } else {
+          saveToLibraryWrap.classList.remove('hidden');
+        }
+        saveToLibraryCheck.checked = false;
+        uploadSourceModal.classList.remove('hidden');
+        uploadSourceModal.classList.add('flex');
+      }
+
+      function closeUploadSourceModal() {
+        uploadSourceModal.classList.add('hidden');
+        uploadSourceModal.classList.remove('flex');
+      }
+
+      document.getElementById('uploadSourceClose').addEventListener('click', closeUploadSourceModal);
+      uploadSourceModal.addEventListener('click', function(e) {
+        if (e.target === uploadSourceModal) closeUploadSourceModal();
+      });
+
+      document.getElementById('chooseLocalBtn').addEventListener('click', function() {
+        closeUploadSourceModal();
+        var inputId = currentUploadRole === 'portrait' ? 'filePortrait' : 'fileLandscape';
+        document.getElementById(inputId).click();
+      });
+
+      document.getElementById('chooseMaterialBtn').addEventListener('click', function() {
+        var mediaType = getMediaType(currentUploadRole);
+        if (mediaType === 'video') {
+          Toast.warning('视频暂不支持从素材库选择');
+          return;
+        }
+        closeUploadSourceModal();
+        openMaterialLibraryModal();
+      });
+
+      // 本地上传可选保存到素材库
+      var defaultMaterialCategories = ['全部', '屏保素材', '广告素材', '其他'];
+
+      function getMaterialCategories() {
+        try {
+          var saved = localStorage.getItem('material_categories');
+          return saved ? JSON.parse(saved) : defaultMaterialCategories.slice();
+        } catch (e) {
+          return defaultMaterialCategories.slice();
+        }
+      }
+
+      function getMaterialImages() {
+        try {
+          var saved = localStorage.getItem('material_images');
+          return saved ? JSON.parse(saved) : [];
+        } catch (e) {
+          return [];
+        }
+      }
+
+      function saveMaterialImages(list) {
+        localStorage.setItem('material_images', JSON.stringify(list));
+      }
+
+      function saveMaterialToLibrary(dataUrl, name) {
+        try {
+          var images = getMaterialImages();
+          images.unshift({
+            id: 'm' + Date.now() + Math.random().toString(36).substr(2, 5),
+            name: name || '屏保图片_' + new Date().toLocaleString(),
+            category: '',
+            url: dataUrl
+          });
+          saveMaterialImages(images);
+        } catch (e) {
+          console.error('保存到素材库失败:', e);
+        }
+      }
+
+      var originalAddFiles = addFiles;
+      addFiles = function(role, files) {
+        var list = role === 'portrait' ? portraitList : landscapeList;
+        var maxCount = getMaxCount(role);
+        var remain = maxCount - list.length;
+        if (remain <= 0) return;
+        var mediaType = getMediaType(role);
+        var shouldSaveToLibrary = saveToLibraryCheck.checked && mediaType === 'image';
+
+        for (var i = 0; i < files.length && list.length < maxCount; i++) {
+          var file = files[i];
+          if (mediaType === 'video') {
+            if (!file.type || !file.type.startsWith('video/')) continue;
+          } else {
+            if (!file.type || !file.type.startsWith('image/')) continue;
+          }
+          var item = { url: URL.createObjectURL(file), file: file, type: file.type.startsWith('video/') ? 'video' : 'image' };
+          list.push(item);
+
+          if (shouldSaveToLibrary && item.type === 'image') {
+            (function(f) {
+              var maxW = role === 'portrait' ? 540 : 960;
+              var maxH = role === 'portrait' ? 960 : 540;
+              compressImage(f, maxW, maxH, 0.7).then(function(dataUrl) {
+                saveMaterialToLibrary(dataUrl);
+              });
+            })(file);
+          }
+        }
+        if (role === 'portrait') portraitList = list; else landscapeList = list;
+        renderPreviews(role);
+      };
+
+      // ========== 素材库选择模态框 ==========
+      var materialLibraryModal = document.getElementById('materialLibraryModal');
+      var materialCategoryList = document.getElementById('materialCategoryList');
+      var materialImageGrid = document.getElementById('materialImageGrid');
+      var materialEmptyState = document.getElementById('materialEmptyState');
+      var selectedMaterialCountEl = document.getElementById('selectedMaterialCount');
+
+      function openMaterialLibraryModal() {
+        selectedMaterials = [];
+        currentMaterialCategory = null;
+        loadMaterialCategories();
+        materialLibraryModal.classList.remove('hidden');
+        materialLibraryModal.classList.add('flex');
+      }
+
+      function closeMaterialLibraryModal() {
+        materialLibraryModal.classList.add('hidden');
+        materialLibraryModal.classList.remove('flex');
+      }
+
+      document.getElementById('materialLibraryClose').addEventListener('click', closeMaterialLibraryModal);
+      document.getElementById('materialCancelBtn').addEventListener('click', closeMaterialLibraryModal);
+      materialLibraryModal.addEventListener('click', function(e) {
+        if (e.target === materialLibraryModal) closeMaterialLibraryModal();
+      });
+
+      function escapeHtmlMaterial(s) {
+        var d = document.createElement('div');
+        d.textContent = s || '';
+        return d.innerHTML;
+      }
+
+      var tagColorsMaterial = { blue: 'bg-blue-100 text-blue-700', red: 'bg-red-100 text-red-700', green: 'bg-emerald-100 text-emerald-700', default: 'bg-gray-100 text-gray-700' };
+
+      function loadMaterialCategories() {
+        var categories = getMaterialCategories();
+        if (categories.length === 0) {
+          materialCategoryList.innerHTML = '<div class="text-sm text-gray-400 p-2">暂无分类</div>';
+          materialImageGrid.innerHTML = '';
+          materialEmptyState.classList.remove('hidden');
+          return;
+        }
+        materialCategoryList.innerHTML = categories.map(function(cat, idx) {
+          var activeClass = idx === 0 ? 'bg-sidebar-active text-primary font-medium' : 'text-gray-700 hover:bg-gray-100';
+          return '<button type="button" class="category-btn w-full text-left px-3 py-2 rounded-ant text-sm transition-colors ' + activeClass + '" data-category="' + escapeHtmlMaterial(cat) + '">' + escapeHtmlMaterial(cat) + '</button>';
+        }).join('');
+
+        materialCategoryList.querySelectorAll('.category-btn').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            materialCategoryList.querySelectorAll('.category-btn').forEach(function(b) {
+              b.classList.remove('bg-sidebar-active', 'text-primary', 'font-medium');
+              b.classList.add('text-gray-700', 'hover:bg-gray-100');
+            });
+            this.classList.add('bg-sidebar-active', 'text-primary', 'font-medium');
+            this.classList.remove('text-gray-700', 'hover:bg-gray-100');
+            currentMaterialCategory = this.getAttribute('data-category');
+            loadMaterialImages(currentMaterialCategory);
+          });
+        });
+
+        currentMaterialCategory = categories[0];
+        loadMaterialImages(currentMaterialCategory);
+      }
+
+      function loadMaterialImages(category) {
+        var allImages = getMaterialImages();
+        var images = allImages.filter(function(img) {
+          return category === '全部' || img.category === category;
+        });
+
+        if (images.length === 0) {
+          materialImageGrid.innerHTML = '';
+          materialEmptyState.classList.remove('hidden');
+          updateSelectedMaterialCount();
+          return;
+        }
+        materialEmptyState.classList.add('hidden');
+
+        materialImageGrid.innerHTML = images.map(function(img) {
+          var isSelected = selectedMaterials.some(function(m) { return m.id === img.id; });
+          var selectedClass = isSelected ? 'ring-2 ring-primary ring-offset-2' : '';
+          var checkClass = isSelected ? '' : 'hidden';
+          var tagCls = tagColorsMaterial[img.tagColor] || tagColorsMaterial.default;
+          var imgSrc = img.url || 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150" viewBox="0 0 200 150"><rect fill="#f3f4f6" width="200" height="150"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#9ca3af" font-size="12">' + escapeHtmlMaterial(img.name) + '</text></svg>');
+          var tagHtml = img.category ? '<span class="absolute top-2 right-2 px-1.5 py-0.5 rounded text-xs ' + tagCls + '">' + escapeHtmlMaterial(img.category) + '</span>' : '';
+          return '<div class="material-item relative cursor-pointer rounded-ant overflow-hidden border border-gray-100 group ' + selectedClass + '" data-id="' + escapeHtmlMaterial(img.id) + '" data-url="' + escapeHtmlMaterial(imgSrc) + '">' +
+            '<div class="aspect-[4/3] bg-gray-100">' +
+              '<img src="' + imgSrc + '" alt="' + escapeHtmlMaterial(img.name) + '" class="w-full h-full object-cover" />' +
+            '</div>' +
+            tagHtml +
+            '<div class="material-check absolute top-2 left-2 w-5 h-5 rounded-full bg-primary text-white flex items-center justify-center text-xs shadow ' + checkClass + '">✓</div>' +
+            '<div class="p-2 bg-white">' +
+              '<span class="text-sm text-gray-800 truncate block">' + escapeHtmlMaterial(img.name) + '</span>' +
+            '</div>' +
+          '</div>';
+        }).join('');
+
+        materialImageGrid.querySelectorAll('.material-item').forEach(function(item) {
+          item.addEventListener('click', function() {
+            var id = this.getAttribute('data-id');
+            var url = this.getAttribute('data-url');
+            var idx = selectedMaterials.findIndex(function(m) { return m.id === id; });
+
+            if (idx >= 0) {
+              selectedMaterials.splice(idx, 1);
+              this.classList.remove('ring-2', 'ring-primary', 'ring-offset-2');
+              this.querySelector('.material-check').classList.add('hidden');
+            } else {
+              var list = currentUploadRole === 'portrait' ? portraitList : landscapeList;
+              var maxCount = getMaxCount(currentUploadRole);
+              if (list.length + selectedMaterials.length >= maxCount) {
+                Toast.warning('最多选择 ' + maxCount + ' 个素材');
+                return;
+              }
+              selectedMaterials.push({ id: id, dataUrl: url });
+              this.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
+              this.querySelector('.material-check').classList.remove('hidden');
+            }
+            updateSelectedMaterialCount();
+          });
+        });
+        updateSelectedMaterialCount();
+      }
+
+      function updateSelectedMaterialCount() {
+        selectedMaterialCountEl.textContent = selectedMaterials.length;
+      }
+
+      document.getElementById('materialConfirmBtn').addEventListener('click', function() {
+        if (selectedMaterials.length === 0) {
+          Toast.warning('请选择至少一个素材');
+          return;
+        }
+        var list = currentUploadRole === 'portrait' ? portraitList : landscapeList;
+        selectedMaterials.forEach(function(mat) {
+          list.push({ url: mat.dataUrl, dataUrl: mat.dataUrl, type: 'image' });
+        });
+        if (currentUploadRole === 'portrait') portraitList = list; else landscapeList = list;
+        renderPreviews(currentUploadRole);
+        closeMaterialLibraryModal();
+        Toast.success('已添加 ' + selectedMaterials.length + ' 个素材');
       });
 
       renderPreviews('portrait');

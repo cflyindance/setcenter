@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>新建屏保 - Kiosk屏保</title>
+  <title>新建屏保 - 屏保</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="assets/common.css" />
   <script src="assets/toast.js"></script>
@@ -27,11 +27,11 @@
         <a href="material.html" class="menu-item px-3 py-2 text-gray-600 flex items-center justify-between rounded-ant hover:bg-gray-100"><span>图片素材</span></a>
         <div class="nav-group">
           <div class="nav-group-title menu-item px-3 py-2 text-gray-600 flex items-center justify-between cursor-pointer hover:bg-gray-100 rounded-ant" onclick="this.parentElement.classList.toggle('collapsed')">
-            <span>配置中心</span>
+            <span>前厅管理中心</span>
             <span class="nav-arrow text-xs transition-transform">⌄</span>
           </div>
           <div class="nav-group-items pl-3 space-y-0.5">
-            <a href="kiosk-theme-list.html" class="menu-item active px-3 py-2 flex items-center rounded-ant bg-sidebar-active text-primary font-medium">Kiosk屏保</a>
+            <a href="kiosk-theme-list.html" class="menu-item active px-3 py-2 flex items-center rounded-ant bg-sidebar-active text-primary font-medium">屏保</a>
           </div>
         </div>
       </nav>
@@ -60,9 +60,9 @@
           <label class="block text-sm font-medium text-gray-700 mb-2">主题名称</label>
           <input type="text" name="name" required placeholder="主题名称 *" class="w-full px-3 py-2 border border-gray-200 rounded-ant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" />
         </div>
-        <!-- 竖版：最多 5 张，上传后预览 -->
+        <!-- 竖版：最多 5 张，上传后预览（比例 9:16） -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">竖版</label>
+          <label class="block text-sm font-medium text-gray-700 mb-2">竖版 <span class="text-gray-400 font-normal">预览比例 9∶16</span></label>
           <div class="flex gap-4 mb-2">
             <label class="inline-flex items-center gap-2 cursor-pointer">
               <input type="radio" name="portraitType" value="image" checked class="text-primary" />
@@ -79,9 +79,9 @@
             <div id="portraitHints" class="text-sm text-gray-500 space-y-1 flex-shrink-0"></div>
           </div>
         </div>
-        <!-- 横版 -->
+        <!-- 横版（比例 16:9） -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">横版</label>
+          <label class="block text-sm font-medium text-gray-700 mb-2">横版 <span class="text-gray-400 font-normal">预览比例 16∶9</span></label>
           <div class="flex gap-4 mb-2">
             <label class="inline-flex items-center gap-2 cursor-pointer">
               <input type="radio" name="landscapeType" value="image" checked class="text-primary" />
@@ -219,17 +219,22 @@
         var maxCount = getMaxCount(role);
 
         var isPortrait = role === 'portrait';
-        var boxClass = isPortrait ? 'w-24 h-32' : 'w-32 h-24';
+        /* 设备比例：竖版 1080×1920 = 9:16，横版 1920×1080 = 16:9 */
+        var boxClass = isPortrait ? 'w-[5.625rem] aspect-[9/16]' : 'w-[10rem] aspect-video';
+        var canDrag = list.length > 1;
         var html = '';
         list.forEach(function(item, index) {
           var mediaHtml = '';
           if (item.type === 'video') {
-            mediaHtml = '<video src="' + item.url + '" class="w-full h-full object-cover" muted></video>' +
+            mediaHtml = '<video src="' + item.url + '" class="w-full h-full object-cover muted" draggable="false"></video>' +
               '<div class="absolute inset-0 flex items-center justify-center pointer-events-none"><span class="w-8 h-8 bg-black/50 rounded-full flex items-center justify-center text-white text-xs">▶</span></div>';
           } else {
-            mediaHtml = '<img src="' + item.url + '" alt="预览" class="w-full h-full object-cover" />';
+            mediaHtml = '<img src="' + item.url + '" alt="预览" class="w-full h-full object-cover pointer-events-none" draggable="false" />';
           }
-          html += '<div class="relative group flex-shrink-0 rounded-ant overflow-hidden border border-gray-200 bg-gray-50 ' + boxClass + '">' +
+          var dragAttr = canDrag ? ' draggable="true"' : '';
+          var dragClass = canDrag ? ' cursor-grab active:cursor-grabbing preview-item' : '';
+          html += '<div class="relative group flex-shrink-0 rounded-ant overflow-hidden border border-gray-200 bg-gray-50 ' + boxClass + dragClass + '" data-role="' + role + '" data-index="' + index + '"' + dragAttr + '>' +
+            (canDrag ? '<span class="absolute bottom-1 left-1 w-5 h-5 rounded bg-black/50 flex items-center justify-center text-white text-xs pointer-events-none" title="拖动排序">⋮⋮</span>' : '') +
             mediaHtml +
             '<button type="button" class="img-remove absolute top-1 right-1 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center text-sm hover:bg-red-500 transition-colors" data-role="' + role + '" data-index="' + index + '" aria-label="删除">×</button>' +
             '</div>';
@@ -250,6 +255,7 @@
         container.querySelectorAll('.img-remove').forEach(function(btn) {
           btn.addEventListener('click', function(e) {
             e.preventDefault();
+            e.stopPropagation();
             var r = btn.getAttribute('data-role');
             var i = parseInt(btn.getAttribute('data-index'), 10);
             if (r === 'portrait') {
@@ -263,6 +269,53 @@
             }
           });
         });
+
+        if (canDrag) {
+          container.querySelectorAll('.preview-item').forEach(function(el) {
+            el.addEventListener('dragstart', function(e) {
+              e.dataTransfer.setData('text/plain', role + ':' + el.getAttribute('data-index'));
+              e.dataTransfer.effectAllowed = 'move';
+              el.classList.add('opacity-60', 'ring-2', 'ring-primary');
+            });
+            el.addEventListener('dragend', function(e) {
+              el.classList.remove('opacity-60', 'ring-2', 'ring-primary');
+            });
+            el.addEventListener('dragover', function(e) {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+              var target = e.currentTarget;
+              if (target.classList && !target.classList.contains('preview-item')) return;
+              target.classList.add('ring-2', 'ring-primary', 'ring-offset-1');
+            });
+            el.addEventListener('dragleave', function(e) {
+              if (!e.currentTarget.contains(e.relatedTarget)) {
+                e.currentTarget.classList.remove('ring-2', 'ring-primary', 'ring-offset-1');
+              }
+            });
+            el.addEventListener('drop', function(e) {
+              e.preventDefault();
+              e.currentTarget.classList.remove('ring-2', 'ring-primary', 'ring-offset-1');
+              var raw = e.dataTransfer.getData('text/plain');
+              if (!raw) return;
+              var parts = raw.split(':');
+              if (parts[0] !== role) return;
+              var fromIndex = parseInt(parts[1], 10);
+              var toIndex = parseInt(e.currentTarget.getAttribute('data-index'), 10);
+              if (fromIndex === toIndex) return;
+              movePreviewItem(role, fromIndex, toIndex);
+            });
+          });
+        }
+      }
+
+      function movePreviewItem(role, fromIndex, toIndex) {
+        var list = role === 'portrait' ? portraitList : landscapeList;
+        var item = list[fromIndex];
+        list.splice(fromIndex, 1);
+        var insertAt = fromIndex < toIndex ? toIndex - 1 : toIndex;
+        list.splice(insertAt, 0, item);
+        if (role === 'portrait') portraitList = list; else landscapeList = list;
+        renderPreviews(role);
       }
 
       function addFiles(role, files) {

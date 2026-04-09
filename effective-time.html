@@ -220,6 +220,11 @@
                 var eT = endTimeInput.value;
                 theme.effectTime = (sD && sT && eD && eT) ? sD + ' ' + sT + ' - ' + eD + ' ' + eT : (theme.effectTime || '--');
               }
+              var selectedChannels = [];
+              try {
+                selectedChannels = JSON.parse(localStorage.getItem('selected_channels_for_distribute') || '[]');
+              } catch (e) {}
+              theme.distributeChannels = Array.isArray(selectedChannels) ? selectedChannels : [];
               var selectedStores = [];
               try {
                 selectedStores = JSON.parse(localStorage.getItem('selected_stores_for_distribute') || '[]');
@@ -235,6 +240,15 @@
               } else {
                 scenario = 'pending';
               }
+              function formatSuccessTime(d) {
+                var y = d.getFullYear();
+                var m = String(d.getMonth() + 1).padStart(2, '0');
+                var day = String(d.getDate()).padStart(2, '0');
+                var h = String(d.getHours()).padStart(2, '0');
+                var min = String(d.getMinutes()).padStart(2, '0');
+                var s = String(d.getSeconds()).padStart(2, '0');
+                return y + '/' + m + '/' + day + ' ' + h + ':' + min + ':' + s;
+              }
               theme.distributedStores = selectedStores.map(function(store, idx) {
                 var status;
                 if (scenario === 'all_success') {
@@ -247,10 +261,13 @@
                   var r = Math.random();
                   status = r < 0.4 ? 'success' : (r < 0.7 ? 'pending' : 'failed');
                 }
-                return { name: store.name, mid: store.mid, status: status };
+                var item = { name: store.name, mid: store.mid, status: status };
+                if (status === 'success') item.successTime = formatSuccessTime(new Date());
+                return item;
               });
               localStorage.setItem('kiosk_themes', JSON.stringify(themes));
               try { localStorage.removeItem('selected_stores_for_distribute'); } catch (e) {}
+              try { localStorage.removeItem('selected_channels_for_distribute'); } catch (e) {}
             }
             try { localStorage.removeItem('current_theme_id_for_distribute'); } catch (e) {}
           }

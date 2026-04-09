@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Kiosk屏保 - 配置中心</title>
+  <title>屏保 - 前厅管理中心</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="assets/common.css" />
   <script>
@@ -25,11 +25,11 @@
         <a href="material.html" class="menu-item px-3 py-2 text-gray-600 flex items-center justify-between rounded-ant hover:bg-gray-100"><span>图片素材</span></a>
         <div class="nav-group">
           <div class="nav-group-title menu-item px-3 py-2 text-gray-600 flex items-center justify-between cursor-pointer hover:bg-gray-100 rounded-ant" onclick="this.parentElement.classList.toggle('collapsed')">
-            <span>配置中心</span>
+            <span>前厅管理中心</span>
             <span class="nav-arrow text-xs transition-transform">⌄</span>
           </div>
           <div class="nav-group-items pl-3 space-y-0.5">
-            <a href="kiosk-theme-list.html" class="menu-item active px-3 py-2 flex items-center rounded-ant bg-sidebar-active text-primary font-medium">Kiosk屏保</a>
+            <a href="kiosk-theme-list.html" class="menu-item active px-3 py-2 flex items-center rounded-ant bg-sidebar-active text-primary font-medium">屏保</a>
           </div>
         </div>
       </nav>
@@ -50,7 +50,7 @@
           </div>
         </div>
         <h2 class="empty-state-title text-xl font-semibold text-gray-800">暂无屏保</h2>
-        <p class="empty-state-desc text-gray-500">创建屏保主题并下发到门店 Kiosk 设备</p>
+        <p class="empty-state-desc text-gray-500">创建屏保主题并下发到门店设备</p>
         <a href="screensaver-create.html" class="btn-primary inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-ant text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">
           <span>+</span> 新建
         </a>
@@ -62,8 +62,8 @@
             <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true">🔍</span>
             <input type="text" id="filterName" placeholder="主题名称" class="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-ant text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" aria-label="按主题名称筛选" />
           </div>
-          <select id="filterDistributeStatus" class="px-3 py-2 border border-gray-200 rounded-ant text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" aria-label="下发状态">
-            <option value="">下发状态</option>
+          <select id="filterDistributeStatus" class="px-3 py-2 border border-gray-200 rounded-ant text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" aria-label="下发门店状态">
+            <option value="">下发门店状态</option>
             <option value="待下发">待下发</option>
             <option value="下发中">下发中</option>
             <option value="已下发">已下发</option>
@@ -324,6 +324,7 @@
         var html = pagedList.map(function(t) {
           var effectStr = t.effectTime || '--';
           var distributeStr = t.distributeTime || '--';
+          var channelsStr = (t.distributeChannels && t.distributeChannels.length) ? t.distributeChannels.join('、') : '--';
           var distStatus = computeDistributeStatus(t.distributeTime, t.distributedStores);
           var effectStatus = computeEffectStatus(t.effectTime, t.distributeTime, t.distributedStores);
           var statusHtml = '';
@@ -356,7 +357,7 @@
             var pendingCount = t.distributedStores.filter(function(s) { return s.status === 'pending'; }).length;
             var failedCount = t.distributedStores.filter(function(s) { return s.status === 'failed'; }).length;
             storesSection = '<div class="flex-shrink-0 w-32 border-l border-gray-100 pl-4">' +
-              '<div class="text-xs text-gray-400 mb-2">下发状态</div>' +
+              '<div class="text-xs text-gray-400 mb-2">下发门店状态</div>' +
               '<div class="space-y-1">' +
                 '<div class="flex items-center justify-between text-xs"><span class="text-gray-500">成功</span><span class="text-green-600 font-medium">' + successCount + '</span></div>' +
                 '<div class="flex items-center justify-between text-xs"><span class="text-gray-500">下发中</span><span class="text-yellow-600 font-medium">' + pendingCount + '</span></div>' +
@@ -373,10 +374,11 @@
                 '<h3 class="font-medium text-gray-800 text-base">' + escapeHtml(t.name) + '</h3>' +
                 (statusHtml ? '<div class="flex items-center">' + statusHtml + '</div>' : '') +
               '</div>' +
-              '<div class="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-2 text-sm">' +
+              '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-2 text-sm">' +
                 '<div><span class="text-gray-400">创建时间</span><div class="text-gray-700 mt-0.5">' + escapeHtml(t.createTime) + '</div></div>' +
                 '<div><span class="text-gray-400">下发时间</span><div class="text-gray-700 mt-0.5">' + escapeHtml(distributeStr) + '</div></div>' +
                 '<div><span class="text-gray-400">生效时间</span><div class="text-gray-700 mt-0.5">' + escapeHtml(effectStr) + '</div></div>' +
+                '<div><span class="text-gray-400">下发渠道</span><div class="text-gray-700 mt-0.5 break-words">' + escapeHtml(channelsStr) + '</div></div>' +
               '</div>' +
             '</div>' +
             storesSection +
@@ -541,10 +543,12 @@
         };
         storesListContainer.innerHTML = stores.map(function(store) {
           var st = statusMap[store.status] || { text: store.status, color: 'bg-gray-100 text-gray-600' };
+          var successTimeHtml = (store.status === 'success' && store.successTime) ? '<div class="text-gray-500 text-xs mt-1">下发成功: ' + escapeHtml(store.successTime) + '</div>' : '';
           return '<div class="flex items-center justify-between p-3 bg-gray-50 rounded-ant">' +
             '<div>' +
               '<div class="font-medium text-gray-800">' + escapeHtml(store.name) + '</div>' +
               '<div class="text-gray-500 text-xs mt-0.5">MID: ' + escapeHtml(store.mid) + '</div>' +
+              successTimeHtml +
             '</div>' +
             '<span class="px-2 py-0.5 rounded text-xs font-medium ' + st.color + '">' + st.text + '</span>' +
           '</div>';
@@ -558,10 +562,20 @@
         var themes = getThemes();
         var theme = themes.find(function(t) { return t.id === currentModalThemeId; });
         if (!theme || !theme.distributedStores) return;
+        function formatSuccessTime(d) {
+          var y = d.getFullYear();
+          var m = String(d.getMonth() + 1).padStart(2, '0');
+          var day = String(d.getDate()).padStart(2, '0');
+          var h = String(d.getHours()).padStart(2, '0');
+          var min = String(d.getMinutes()).padStart(2, '0');
+          var s = String(d.getSeconds()).padStart(2, '0');
+          return y + '/' + m + '/' + day + ' ' + h + ':' + min + ':' + s;
+        }
         theme.distributedStores = theme.distributedStores.map(function(store) {
           if (store.status === 'failed') {
             var rand = Math.random();
             store.status = rand < 0.7 ? 'success' : (rand < 0.9 ? 'pending' : 'failed');
+            if (store.status === 'success') store.successTime = formatSuccessTime(new Date());
           }
           return store;
         });

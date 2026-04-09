@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>选择渠道 - 下发屏保</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="assets/common.css" />
+  <script>
+    tailwind.config = { theme: { extend: { colors: { primary: '#1677ff', 'sidebar-bg': '#fafafa', 'sidebar-active': '#e6f4ff' }, borderRadius: { ant: '6px' } } } };
+  </script>
+</head>
+<body class="bg-white text-gray-900 antialiased">
+  <div class="min-h-screen flex flex-col">
+    <header class="flex-shrink-0 border-b border-gray-200 bg-white">
+      <div class="flex items-center justify-between px-4 py-3">
+        <div class="flex items-center gap-2">
+          <a href="store-select.html" class="p-2 rounded hover:bg-gray-100 text-gray-600" aria-label="返回">←</a>
+          <h1 class="text-base font-semibold">选择渠道</h1>
+        </div>
+        <a href="distribute-time.html" id="nextBtn" class="px-4 py-2 rounded-ant text-gray-400 cursor-not-allowed pointer-events-none">Next →</a>
+        <a href="distribute-time.html" id="nextBtnActive" class="hidden px-4 py-2 rounded-ant bg-primary text-white hover:bg-blue-600">Next →</a>
+      </div>
+      <div class="step-progress w-full">
+        <div class="step-progress-inner" style="width: 50%"></div>
+      </div>
+    </header>
+    <main class="flex-1 p-6 max-w-2xl mx-auto w-full">
+      <h2 class="text-base font-semibold text-gray-800 mb-4">选择渠道</h2>
+      <div class="flex items-center justify-between mb-4">
+        <p class="text-sm text-gray-500">请至少选择一个渠道用于下发屏保</p>
+        <label class="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+          <input type="checkbox" id="checkAllChannels" class="rounded text-primary" />
+          <span>全选</span>
+        </label>
+      </div>
+      <div id="channelGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-3"></div>
+    </main>
+  </div>
+  <script>
+    (function() {
+      var channels = ['Kiosk', 'eMenu', 'CDS', 'OO', 'SDI', '取餐屏'];
+      var channelGrid = document.getElementById('channelGrid');
+      var nextBtn = document.getElementById('nextBtn');
+      var nextBtnActive = document.getElementById('nextBtnActive');
+      var checkAllChannels = document.getElementById('checkAllChannels');
+
+      function escapeHtml(s) {
+        var d = document.createElement('div');
+        d.textContent = s || '';
+        return d.innerHTML;
+      }
+
+      function getSelectedChannels() {
+        try {
+          var raw = localStorage.getItem('selected_channels_for_distribute');
+          var parsed = raw ? JSON.parse(raw) : [];
+          return Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+          return [];
+        }
+      }
+
+      function saveSelectedChannels(list) {
+        try {
+          localStorage.setItem('selected_channels_for_distribute', JSON.stringify(list));
+        } catch (e) {}
+      }
+
+      function toggleNext(enabled) {
+        if (enabled) {
+          nextBtn.classList.add('hidden');
+          nextBtnActive.classList.remove('hidden');
+        } else {
+          nextBtn.classList.remove('hidden');
+          nextBtnActive.classList.add('hidden');
+        }
+      }
+
+      function updateCheckAll(selected) {
+        checkAllChannels.checked = selected.length === channels.length;
+      }
+
+      function renderChannels() {
+        var selected = getSelectedChannels();
+        channelGrid.innerHTML = channels.map(function(ch) {
+          var checked = selected.indexOf(ch) >= 0;
+          var stateCls = checked
+            ? 'border-primary bg-blue-50 text-primary'
+            : 'border-gray-200 hover:border-primary hover:bg-blue-50/40';
+          return '<label class="cursor-pointer border rounded-ant px-3 py-3 text-sm transition-colors flex items-center gap-2 ' + stateCls + '">' +
+            '<input type="checkbox" class="channel-checkbox rounded text-primary" value="' + escapeHtml(ch) + '"' + (checked ? ' checked' : '') + ' />' +
+            '<span>' + escapeHtml(ch) + '</span>' +
+          '</label>';
+        }).join('');
+
+        document.querySelectorAll('.channel-checkbox').forEach(function(cb) {
+          cb.addEventListener('change', function() {
+            var selectedNow = Array.prototype.slice.call(document.querySelectorAll('.channel-checkbox:checked')).map(function(el) { return el.value; });
+            saveSelectedChannels(selectedNow);
+            toggleNext(selectedNow.length > 0);
+            updateCheckAll(selectedNow);
+            renderChannels();
+          });
+        });
+
+        toggleNext(selected.length > 0);
+        updateCheckAll(selected);
+      }
+
+      checkAllChannels.addEventListener('change', function() {
+        if (this.checked) {
+          saveSelectedChannels(channels.slice());
+        } else {
+          saveSelectedChannels([]);
+        }
+        renderChannels();
+      });
+
+      nextBtnActive.addEventListener('click', function(e) {
+        e.preventDefault();
+        var selected = getSelectedChannels();
+        if (!selected.length) return;
+        window.location.href = 'distribute-time.html';
+      });
+
+      renderChannels();
+    })();
+  </script>
+</body>
+</html>

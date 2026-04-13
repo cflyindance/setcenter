@@ -62,24 +62,32 @@
             <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true">🔍</span>
             <input type="text" id="filterName" placeholder="主题名称" class="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-ant text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" aria-label="按主题名称筛选" />
           </div>
-          <select id="filterDistributeStatus" class="px-3 py-2 border border-gray-200 rounded-ant text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" aria-label="下发门店状态">
-            <option value="">下发门店状态</option>
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-sm text-gray-600 whitespace-nowrap">下发状态</span>
+            <select id="filterDistributeStatus" class="px-3 py-2 border border-gray-200 rounded-ant text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" aria-label="按下发状态筛选">
+            <option value="" selected>全部</option>
             <option value="待下发">待下发</option>
             <option value="下发中">下发中</option>
             <option value="已下发">已下发</option>
-            <option value="部分下发失败">部分下发失败</option>
+            <option value="部分门店下发失败">部分门店下发失败</option>
+            <option value="部分渠道下发失败">部分渠道下发失败</option>
             <option value="下发失败">下发失败</option>
           </select>
-          <select id="filterEffectStatus" class="px-3 py-2 border border-gray-200 rounded-ant text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" aria-label="生效状态">
-            <option value="">生效状态</option>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-sm text-gray-600 whitespace-nowrap">生效状态</span>
+            <select id="filterEffectStatus" class="px-3 py-2 border border-gray-200 rounded-ant text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" aria-label="按生效状态筛选">
+            <option value="" selected>全部</option>
             <option value="待生效">待生效</option>
             <option value="已生效">已生效</option>
             <option value="已失效">已失效</option>
           </select>
-          <div class="flex items-center gap-2">
-            <input type="date" id="filterStartDate" class="w-32 px-2 py-2 border border-gray-200 rounded-ant text-sm focus:outline-none focus:border-primary" title="创建开始时间" />
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-sm text-gray-600 whitespace-nowrap">创建时间</span>
+            <input type="date" id="filterStartDate" class="w-32 px-2 py-2 border border-gray-200 rounded-ant text-sm focus:outline-none focus:border-primary" title="创建开始日期" aria-label="创建开始日期" />
             <span class="text-gray-400">→</span>
-            <input type="date" id="filterEndDate" class="w-32 px-2 py-2 border border-gray-200 rounded-ant text-sm focus:outline-none focus:border-primary" title="创建结束时间" />
+            <input type="date" id="filterEndDate" class="w-32 px-2 py-2 border border-gray-200 rounded-ant text-sm focus:outline-none focus:border-primary" title="创建结束日期" aria-label="创建结束日期" />
           </div>
           <button type="button" id="filterResetBtn" class="btn-default px-4 py-2 rounded-ant text-sm">重置</button>
           <a href="screensaver-create.html" class="btn-primary ml-auto inline-flex items-center gap-1.5 px-4 py-2 rounded-ant text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">+ 新建</a>
@@ -125,7 +133,7 @@
           <span class="text-yellow-600">下发中: <span id="storesPending">0</span></span>
           <span class="text-red-600">失败: <span id="storesFailed">0</span></span>
         </div>
-        <button type="button" id="retryFailedBtn" class="hidden px-3 py-1 text-xs rounded-ant bg-primary text-white hover:bg-blue-600">重新下发失败门店</button>
+        <button type="button" id="retryFailedBtn" class="hidden px-3 py-1 text-xs rounded-ant bg-primary text-white hover:bg-blue-600">重试失败下发</button>
       </div>
       <div class="px-4 py-3 border-b border-gray-100 space-y-2 flex-shrink-0 bg-gray-50/50">
         <div class="flex flex-wrap gap-2 items-center">
@@ -228,6 +236,19 @@
         return isNaN(d.getTime()) ? null : d;
       }
 
+      /** 门店维度全部成功，但存在任一门店的任一下发渠道为失败 */
+      function hasChannelLevelFailure(distributedStores) {
+        if (!distributedStores || !distributedStores.length) return false;
+        for (var i = 0; i < distributedStores.length; i++) {
+          var arr = distributedStores[i].channelStatuses;
+          if (!arr || !arr.length) continue;
+          for (var j = 0; j < arr.length; j++) {
+            if (arr[j].status === 'failed') return true;
+          }
+        }
+        return false;
+      }
+
       function computeDistributeStatus(distributeTime, distributedStores) {
         if (!distributeTime || distributeTime === '--') return null;
         var dt = parseDateTime(distributeTime);
@@ -239,13 +260,19 @@
           var failedCount = distributedStores.filter(function(s) { return s.status === 'failed'; }).length;
           var pendingCount = distributedStores.filter(function(s) { return s.status === 'pending'; }).length;
           if (failedCount > 0 && successCount > 0) {
-            return { text: '部分下发失败', color: 'bg-orange-100 text-orange-700' };
+            return { text: '部分门店下发失败', color: 'bg-orange-100 text-orange-700' };
+          }
+          if (failedCount > 0 && pendingCount > 0) {
+            return { text: '部分门店下发失败', color: 'bg-orange-100 text-orange-700' };
           }
           if (failedCount > 0 && successCount === 0 && pendingCount === 0) {
             return { text: '下发失败', color: 'bg-red-100 text-red-700' };
           }
           if (pendingCount > 0) {
             return { text: '下发中', color: 'bg-blue-100 text-blue-700' };
+          }
+          if (successCount === distributedStores.length && successCount > 0 && hasChannelLevelFailure(distributedStores)) {
+            return { text: '部分渠道下发失败', color: 'bg-amber-100 text-amber-800' };
           }
         }
         return { text: '已下发', color: 'bg-green-100 text-green-700' };
@@ -301,8 +328,10 @@
               var failedCount = stores.filter(function(s) { return s.status === 'failed'; }).length;
               var pendingCount = stores.filter(function(s) { return s.status === 'pending'; }).length;
               if (failedCount > 0 && successCount > 0) return 1;
+              if (failedCount > 0 && pendingCount > 0) return 1;
               if (failedCount > 0 && successCount === 0 && pendingCount === 0) return 1;
               if (pendingCount > 0) return 2;
+              if (successCount === stores.length && successCount > 0 && hasChannelLevelFailure(stores)) return 1;
             }
           }
           if (effTime && effTime !== '--') {
@@ -386,13 +415,12 @@
           var channelsStr = (t.distributeChannels && t.distributeChannels.length) ? t.distributeChannels.join('、') : '--';
           var distStatus = computeDistributeStatus(t.distributeTime, t.distributedStores);
           var effectStatus = computeEffectStatus(t.effectTime, t.distributeTime, t.distributedStores);
-          var statusHtml = '';
-          if (distStatus) {
-            statusHtml += '<span class="inline-block px-2 py-0.5 rounded text-xs font-medium mr-1 ' + distStatus.color + '">' + distStatus.text + '</span>';
-          }
-          if (effectStatus) {
-            statusHtml += '<span class="inline-block px-2 py-0.5 rounded text-xs font-medium ' + effectStatus.color + '">' + effectStatus.text + '</span>';
-          }
+          var distStatusBadge = distStatus
+            ? '<span class="inline-block px-2 py-0.5 rounded text-xs font-medium ' + distStatus.color + '">' + distStatus.text + '</span>'
+            : '<span class="text-gray-400">—</span>';
+          var effStatusBadge = effectStatus
+            ? '<span class="inline-block px-2 py-0.5 rounded text-xs font-medium ' + effectStatus.color + '">' + effectStatus.text + '</span>'
+            : '<span class="text-gray-400">—</span>';
 
           var hasPortrait = t.portraitImages && t.portraitImages.length;
           var hasLandscape = t.landscapeImages && t.landscapeImages.length;
@@ -431,13 +459,14 @@
             '<div class="flex-1 min-w-0">' +
               '<div class="flex items-center gap-2 mb-3">' +
                 '<h3 class="font-medium text-gray-800 text-base">' + escapeHtml(t.name) + '</h3>' +
-                (statusHtml ? '<div class="flex items-center">' + statusHtml + '</div>' : '') +
               '</div>' +
-              '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-2 text-sm">' +
-                '<div><span class="text-gray-400">创建时间</span><div class="text-gray-700 mt-0.5">' + escapeHtml(t.createTime) + '</div></div>' +
+              '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2 text-sm">' +
+                '<div><span class="text-gray-400">创建时间</span><div class="text-gray-700 mt-0.5">' + escapeHtml(t.createTime || '—') + '</div></div>' +
                 '<div><span class="text-gray-400">下发时间</span><div class="text-gray-700 mt-0.5">' + escapeHtml(distributeStr) + '</div></div>' +
                 '<div><span class="text-gray-400">生效时间</span><div class="text-gray-700 mt-0.5">' + escapeHtml(effectStr) + '</div></div>' +
                 '<div><span class="text-gray-400">下发渠道</span><div class="text-gray-700 mt-0.5 break-words">' + escapeHtml(channelsStr) + '</div></div>' +
+                '<div><span class="text-gray-400">下发状态</span><div class="text-gray-700 mt-0.5">' + distStatusBadge + '</div></div>' +
+                '<div><span class="text-gray-400">生效状态</span><div class="text-gray-700 mt-0.5">' + effStatusBadge + '</div></div>' +
               '</div>' +
             '</div>' +
             storesSection +
@@ -589,6 +618,16 @@
         'failed': { text: '失败', color: 'bg-red-100 text-red-700' }
       };
 
+      function renderStoreChannelRows(store) {
+        var arr = store.channelStatuses;
+        if (!arr || !arr.length) return '';
+        var rows = arr.map(function(cs) {
+          var st = storesModalStatusMap[cs.status] || { text: cs.status, color: 'bg-gray-100 text-gray-600' };
+          return '<div class="flex items-center justify-between text-xs mt-1"><span class="text-gray-500 truncate pr-2" title="' + escapeHtml(cs.channel || '') + '">' + escapeHtml(cs.channel || '—') + '</span><span class="flex-shrink-0 px-1.5 py-0.5 rounded font-medium ' + st.color + '">' + st.text + '</span></div>';
+        }).join('');
+        return '<div class="mt-2 pt-2 border-t border-gray-100"><div class="text-xs text-gray-400 mb-0.5">各渠道下发</div>' + rows + '</div>';
+      }
+
       function renderStoresModalList() {
         if (!currentModalThemeId || !storesListContainer) return;
         var themes = getThemes();
@@ -610,13 +649,19 @@
           ? filtered.map(function(store) {
               var st = storesModalStatusMap[store.status] || { text: store.status, color: 'bg-gray-100 text-gray-600' };
               var successTimeHtml = (store.status === 'success' && store.successTime) ? '<div class="text-gray-500 text-xs mt-1">下发成功: ' + escapeHtml(store.successTime) + '</div>' : '';
-              return '<div class="flex items-center justify-between p-3 bg-gray-50 rounded-ant">' +
-                '<div>' +
-                  '<div class="font-medium text-gray-800">' + escapeHtml(store.name) + '</div>' +
-                  '<div class="text-gray-500 text-xs mt-0.5">MID: ' + escapeHtml(store.mid) + '</div>' +
-                  successTimeHtml +
+              var channelBlock = renderStoreChannelRows(store);
+              return '<div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 p-3 bg-gray-50 rounded-ant">' +
+                '<div class="flex-1 min-w-0">' +
+                  '<div class="flex items-start justify-between gap-2">' +
+                    '<div>' +
+                      '<div class="font-medium text-gray-800">' + escapeHtml(store.name) + '</div>' +
+                      '<div class="text-gray-500 text-xs mt-0.5">MID: ' + escapeHtml(store.mid) + '</div>' +
+                      successTimeHtml +
+                    '</div>' +
+                    '<span class="flex-shrink-0 px-2 py-0.5 rounded text-xs font-medium self-start ' + st.color + '">门店：' + st.text + '</span>' +
+                  '</div>' +
+                  channelBlock +
                 '</div>' +
-                '<span class="px-2 py-0.5 rounded text-xs font-medium ' + st.color + '">' + st.text + '</span>' +
               '</div>';
             }).join('')
           : '<p class="text-center text-sm text-gray-500 py-8 px-2">无匹配门店，请调整下发状态或 MID 关键词</p>';
@@ -645,7 +690,8 @@
         storesSuccessEl.textContent = successCount;
         storesPendingEl.textContent = pendingCount;
         storesFailedEl.textContent = failedCount;
-        if (failedCount > 0) {
+        var channelLevelFail = hasChannelLevelFailure(stores);
+        if (failedCount > 0 || channelLevelFail) {
           retryFailedBtn.classList.remove('hidden');
         } else {
           retryFailedBtn.classList.add('hidden');
@@ -675,6 +721,15 @@
             store.status = rand < 0.7 ? 'success' : (rand < 0.9 ? 'pending' : 'failed');
             if (store.status === 'success') store.successTime = formatSuccessTime(new Date());
           }
+          if (store.channelStatuses && store.channelStatuses.length) {
+            store.channelStatuses = store.channelStatuses.map(function(ch) {
+              if (ch.status === 'failed') {
+                var r = Math.random();
+                ch.status = r < 0.75 ? 'success' : 'failed';
+              }
+              return ch;
+            });
+          }
           return store;
         });
         saveThemes(themes);
@@ -683,7 +738,7 @@
       }
 
       retryFailedBtn.addEventListener('click', function() {
-        if (confirm('确认重新下发失败的门店？')) {
+        if (confirm('确认重试失败的门店或渠道下发？')) {
           retryFailedStores();
         }
       });

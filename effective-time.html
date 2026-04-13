@@ -240,8 +240,10 @@
             } catch (e) {}
             var scenarioRand = Math.random();
             var scenario;
-            if (scenarioRand < 0.2) {
+            if (scenarioRand < 0.15) {
               scenario = 'all_success';
+            } else if (scenarioRand < 0.22) {
+              scenario = 'channel_partial_fail';
             } else if (scenarioRand < 0.5) {
               scenario = 'partial_fail';
             } else if (scenarioRand < 0.7) {
@@ -258,9 +260,12 @@
               var s = String(d.getSeconds()).padStart(2, '0');
               return y + '/' + m + '/' + day + ' ' + h + ':' + min + ':' + s;
             }
+            var channelsForStores = Array.isArray(selectedChannels) && selectedChannels.length ? selectedChannels : ['Kiosk'];
             theme.distributedStores = selectedStores.map(function(store, idx) {
               var status;
               if (scenario === 'all_success') {
+                status = 'success';
+              } else if (scenario === 'channel_partial_fail') {
                 status = 'success';
               } else if (scenario === 'all_fail') {
                 status = 'failed';
@@ -270,7 +275,20 @@
                 var r = Math.random();
                 status = r < 0.4 ? 'success' : (r < 0.7 ? 'pending' : 'failed');
               }
-              var item = { name: store.name, mid: store.mid, status: status };
+              var channelStatuses = channelsForStores.map(function(chName, cidx) {
+                var chStatus = 'success';
+                if (status === 'failed') {
+                  chStatus = 'failed';
+                } else if (status === 'pending') {
+                  chStatus = 'pending';
+                } else if (scenario === 'channel_partial_fail' && status === 'success') {
+                  if (idx % 2 === 1 && cidx === channelsForStores.length - 1) {
+                    chStatus = 'failed';
+                  }
+                }
+                return { channel: chName, status: chStatus };
+              });
+              var item = { name: store.name, mid: store.mid, status: status, channelStatuses: channelStatuses };
               if (status === 'success') item.successTime = formatSuccessTime(new Date());
               return item;
             });

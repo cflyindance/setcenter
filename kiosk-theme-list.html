@@ -111,14 +111,20 @@
       </div>
     </main>
   </div>
-  <!-- 图片预览模态框：同一弹框内可浏览竖版 + 横版全部图片 -->
-  <div id="imagePreviewModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80">
-    <button type="button" id="previewClose" class="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-white/20 hover:bg-white/40 text-white text-2xl flex items-center justify-center transition-colors" aria-label="关闭">×</button>
-    <div id="previewOrientationBadge" class="absolute top-16 left-1/2 -translate-x-1/2 z-10 px-4 py-1.5 rounded-full bg-white/20 text-white text-sm font-medium backdrop-blur-sm shadow-lg" aria-live="polite">竖版</div>
-    <button type="button" id="previewPrev" class="absolute left-4 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full bg-white/20 hover:bg-white/40 text-white text-2xl flex items-center justify-center transition-colors" aria-label="上一张">&lt;</button>
-    <button type="button" id="previewNext" class="absolute right-4 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full bg-white/20 hover:bg-white/40 text-white text-2xl flex items-center justify-center transition-colors" aria-label="下一张">&gt;</button>
-    <img id="previewImage" src="" alt="预览大图" class="max-w-[90vw] max-h-[calc(85vh-5rem)] object-contain rounded-lg shadow-2xl mt-8" />
-    <div id="previewCounter" class="absolute bottom-6 left-1/2 -translate-x-1/2 max-w-[90vw] text-center px-4 py-2 rounded-full bg-white/20 text-white text-sm leading-snug"></div>
+  <!-- 图片预览模态框：遮罩单独一层，避免误点空白区当作「点蒙层关闭」；导航 z-index 高于图片 -->
+  <div id="imagePreviewModal" class="fixed inset-0 z-50 hidden">
+    <button type="button" id="previewBackdrop" class="absolute inset-0 z-0 block h-full w-full cursor-default border-0 bg-black/80 p-0" aria-label="关闭预览"></button>
+    <div class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+      <button type="button" id="previewClose" class="pointer-events-auto absolute top-4 right-4 z-30 w-10 h-10 rounded-full bg-white/20 hover:bg-white/40 text-white text-2xl flex items-center justify-center transition-colors" aria-label="关闭">×</button>
+      <div id="previewOrientationSwitch" class="pointer-events-auto absolute top-14 left-1/2 z-30 flex -translate-x-1/2 items-center gap-0.5 rounded-full border border-white/15 bg-black/55 p-0.5 shadow-lg backdrop-blur-sm" role="tablist" aria-label="屏保版式切换">
+        <button type="button" id="previewTabPortrait" role="tab" class="preview-orient-tab px-4 py-1.5 rounded-full text-sm font-medium transition-colors text-white/85 hover:bg-white/10 hover:text-white" aria-selected="true">竖版</button>
+        <button type="button" id="previewTabLandscape" role="tab" class="preview-orient-tab px-4 py-1.5 rounded-full text-sm font-medium transition-colors text-white/85 hover:bg-white/10 hover:text-white" aria-selected="false">横版</button>
+      </div>
+      <button type="button" id="previewPrev" class="pointer-events-auto absolute left-4 top-1/2 z-30 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-2xl text-white transition-colors hover:bg-white/40" aria-label="上一张">&lt;</button>
+      <button type="button" id="previewNext" class="pointer-events-auto absolute right-4 top-1/2 z-30 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-2xl text-white transition-colors hover:bg-white/40" aria-label="下一张">&gt;</button>
+      <img id="previewImage" src="" alt="预览大图" class="pointer-events-auto relative z-20 mt-10 max-h-[calc(85vh-6.5rem)] max-w-[90vw] rounded-lg object-contain shadow-2xl" />
+      <div id="previewCounter" class="pointer-events-auto absolute bottom-6 left-1/2 z-30 max-w-[90vw] -translate-x-1/2 rounded-full bg-white/20 px-4 py-2 text-center text-sm leading-snug text-white"></div>
+    </div>
   </div>
   <!-- 门店详情模态框 -->
   <div id="storesModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50">
@@ -530,12 +536,34 @@
       var previewModal = document.getElementById('imagePreviewModal');
       var previewImage = document.getElementById('previewImage');
       var previewCounter = document.getElementById('previewCounter');
-      var previewOrientationBadge = document.getElementById('previewOrientationBadge');
+      var previewTabPortrait = document.getElementById('previewTabPortrait');
+      var previewTabLandscape = document.getElementById('previewTabLandscape');
       var previewPrev = document.getElementById('previewPrev');
       var previewNext = document.getElementById('previewNext');
       var previewClose = document.getElementById('previewClose');
       var currentPreviewSlides = [];
       var currentIndex = 0;
+      var previewPortraitCount = 0;
+
+      var previewTabActiveClass = 'bg-white text-gray-900 shadow-sm';
+      var previewTabInactiveClass = 'text-white/85 hover:text-white hover:bg-white/10';
+
+      function updatePreviewOrientationTabs() {
+        if (!previewTabPortrait || !previewTabLandscape || !currentPreviewSlides.length) return;
+        var hasPortrait = previewPortraitCount > 0;
+        var hasLandscape = currentPreviewSlides.length > previewPortraitCount;
+        var onPortrait = currentIndex < previewPortraitCount;
+        previewTabPortrait.disabled = !hasPortrait;
+        previewTabLandscape.disabled = !hasLandscape;
+        previewTabPortrait.className = 'preview-orient-tab px-4 py-1.5 rounded-full text-sm font-medium transition-colors ' +
+          (previewTabPortrait.disabled ? 'opacity-40 cursor-not-allowed ' : '') +
+          (hasPortrait && onPortrait ? previewTabActiveClass : previewTabInactiveClass);
+        previewTabLandscape.className = 'preview-orient-tab px-4 py-1.5 rounded-full text-sm font-medium transition-colors ' +
+          (previewTabLandscape.disabled ? 'opacity-40 cursor-not-allowed ' : '') +
+          (hasLandscape && !onPortrait ? previewTabActiveClass : previewTabInactiveClass);
+        previewTabPortrait.setAttribute('aria-selected', hasPortrait && onPortrait ? 'true' : 'false');
+        previewTabLandscape.setAttribute('aria-selected', hasLandscape && !onPortrait ? 'true' : 'false');
+      }
 
       function buildPreviewSlides(theme) {
         var slides = [];
@@ -576,19 +604,16 @@
           startGlobal = portraitLen + Math.min(Math.max(0, imgIndex), Math.max(0, (theme.landscapeImages || []).length - 1));
         }
         currentPreviewSlides = slides;
+        previewPortraitCount = portraitLen;
         currentIndex = Math.min(startGlobal, slides.length - 1);
         updatePreview();
         previewModal.classList.remove('hidden');
-        previewModal.classList.add('flex');
       }
 
       function updatePreview() {
         if (!currentPreviewSlides.length) return;
         var slide = currentPreviewSlides[currentIndex];
         previewImage.src = slide.src;
-        if (previewOrientationBadge) {
-          previewOrientationBadge.textContent = slide.orientation;
-        }
         var total = currentPreviewSlides.length;
         var sub = slide.groupCount > 0
           ? slide.orientation + ' 第 ' + slide.groupIndex + '/' + slide.groupCount + ' 张'
@@ -597,27 +622,56 @@
         var multi = currentPreviewSlides.length > 1;
         previewPrev.style.display = multi ? 'flex' : 'none';
         previewNext.style.display = multi ? 'flex' : 'none';
+        updatePreviewOrientationTabs();
       }
 
       function closePreview() {
         previewModal.classList.add('hidden');
-        previewModal.classList.remove('flex');
         previewImage.src = '';
         currentPreviewSlides = [];
         currentIndex = 0;
+        previewPortraitCount = 0;
       }
 
-      previewClose.addEventListener('click', closePreview);
-      previewModal.addEventListener('click', function(e) {
-        if (e.target === previewModal) closePreview();
+      var previewBackdrop = document.getElementById('previewBackdrop');
+      previewClose.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        closePreview();
       });
+      if (previewBackdrop) {
+        previewBackdrop.addEventListener('click', function(e) {
+          e.preventDefault();
+          closePreview();
+        });
+      }
+      if (previewTabPortrait) {
+        previewTabPortrait.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (previewPortraitCount < 1) return;
+          currentIndex = 0;
+          updatePreview();
+        });
+      }
+      if (previewTabLandscape) {
+        previewTabLandscape.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (currentPreviewSlides.length <= previewPortraitCount) return;
+          currentIndex = previewPortraitCount;
+          updatePreview();
+        });
+      }
       previewPrev.addEventListener('click', function(e) {
+        e.preventDefault();
         e.stopPropagation();
         if (currentPreviewSlides.length <= 1) return;
         currentIndex = (currentIndex - 1 + currentPreviewSlides.length) % currentPreviewSlides.length;
         updatePreview();
       });
       previewNext.addEventListener('click', function(e) {
+        e.preventDefault();
         e.stopPropagation();
         if (currentPreviewSlides.length <= 1) return;
         currentIndex = (currentIndex + 1) % currentPreviewSlides.length;

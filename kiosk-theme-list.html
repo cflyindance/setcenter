@@ -111,13 +111,14 @@
       </div>
     </main>
   </div>
-  <!-- 图片预览模态框 -->
+  <!-- 图片预览模态框：同一弹框内可浏览竖版 + 横版全部图片 -->
   <div id="imagePreviewModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80">
-    <button type="button" id="previewClose" class="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/20 hover:bg-white/40 text-white text-2xl flex items-center justify-center transition-colors" aria-label="关闭">×</button>
-    <button type="button" id="previewPrev" class="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/20 hover:bg-white/40 text-white text-2xl flex items-center justify-center transition-colors" aria-label="上一张">&lt;</button>
-    <button type="button" id="previewNext" class="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/20 hover:bg-white/40 text-white text-2xl flex items-center justify-center transition-colors" aria-label="下一张">&gt;</button>
-    <img id="previewImage" src="" alt="预览大图" class="max-w-[90vw] max-h-[85vh] object-contain rounded-lg shadow-2xl" />
-    <div id="previewCounter" class="absolute bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full bg-white/20 text-white text-sm"></div>
+    <button type="button" id="previewClose" class="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-white/20 hover:bg-white/40 text-white text-2xl flex items-center justify-center transition-colors" aria-label="关闭">×</button>
+    <div id="previewOrientationBadge" class="absolute top-16 left-1/2 -translate-x-1/2 z-10 px-4 py-1.5 rounded-full bg-white/20 text-white text-sm font-medium backdrop-blur-sm shadow-lg" aria-live="polite">竖版</div>
+    <button type="button" id="previewPrev" class="absolute left-4 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full bg-white/20 hover:bg-white/40 text-white text-2xl flex items-center justify-center transition-colors" aria-label="上一张">&lt;</button>
+    <button type="button" id="previewNext" class="absolute right-4 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full bg-white/20 hover:bg-white/40 text-white text-2xl flex items-center justify-center transition-colors" aria-label="下一张">&gt;</button>
+    <img id="previewImage" src="" alt="预览大图" class="max-w-[90vw] max-h-[calc(85vh-5rem)] object-contain rounded-lg shadow-2xl mt-8" />
+    <div id="previewCounter" class="absolute bottom-6 left-1/2 -translate-x-1/2 max-w-[90vw] text-center px-4 py-2 rounded-full bg-white/20 text-white text-sm leading-snug"></div>
   </div>
   <!-- 门店详情模态框 -->
   <div id="storesModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50">
@@ -529,38 +530,80 @@
       var previewModal = document.getElementById('imagePreviewModal');
       var previewImage = document.getElementById('previewImage');
       var previewCounter = document.getElementById('previewCounter');
+      var previewOrientationBadge = document.getElementById('previewOrientationBadge');
       var previewPrev = document.getElementById('previewPrev');
       var previewNext = document.getElementById('previewNext');
       var previewClose = document.getElementById('previewClose');
-      var currentImages = [];
+      var currentPreviewSlides = [];
       var currentIndex = 0;
+
+      function buildPreviewSlides(theme) {
+        var slides = [];
+        var portrait = theme.portraitImages || [];
+        var landscape = theme.landscapeImages || [];
+        var pLen = portrait.length;
+        var lLen = landscape.length;
+        portrait.forEach(function(img, i) {
+          slides.push({
+            src: img.dataUrl || img,
+            orientation: '竖版',
+            groupIndex: i + 1,
+            groupCount: pLen
+          });
+        });
+        landscape.forEach(function(img, i) {
+          slides.push({
+            src: img.dataUrl || img,
+            orientation: '横版',
+            groupIndex: i + 1,
+            groupCount: lLen
+          });
+        });
+        return slides;
+      }
 
       function openImagePreview(themeId, imgType, imgIndex) {
         var themes = getThemes();
         var theme = themes.find(function(t) { return t.id === themeId; });
         if (!theme) return;
-        var images = imgType === 'portrait' ? (theme.portraitImages || []) : (theme.landscapeImages || []);
-        if (!images.length) return;
-        currentImages = images.map(function(img) { return img.dataUrl || img; });
-        currentIndex = imgIndex;
+        var slides = buildPreviewSlides(theme);
+        if (!slides.length) return;
+        var portraitLen = (theme.portraitImages || []).length;
+        var startGlobal = 0;
+        if (imgType === 'portrait') {
+          startGlobal = Math.min(Math.max(0, imgIndex), Math.max(0, portraitLen - 1));
+        } else {
+          startGlobal = portraitLen + Math.min(Math.max(0, imgIndex), Math.max(0, (theme.landscapeImages || []).length - 1));
+        }
+        currentPreviewSlides = slides;
+        currentIndex = Math.min(startGlobal, slides.length - 1);
         updatePreview();
         previewModal.classList.remove('hidden');
         previewModal.classList.add('flex');
       }
 
       function updatePreview() {
-        if (!currentImages.length) return;
-        previewImage.src = currentImages[currentIndex];
-        previewCounter.textContent = (currentIndex + 1) + ' / ' + currentImages.length;
-        previewPrev.style.display = currentImages.length > 1 ? 'flex' : 'none';
-        previewNext.style.display = currentImages.length > 1 ? 'flex' : 'none';
+        if (!currentPreviewSlides.length) return;
+        var slide = currentPreviewSlides[currentIndex];
+        previewImage.src = slide.src;
+        if (previewOrientationBadge) {
+          previewOrientationBadge.textContent = slide.orientation;
+        }
+        var total = currentPreviewSlides.length;
+        var sub = slide.groupCount > 0
+          ? slide.orientation + ' 第 ' + slide.groupIndex + '/' + slide.groupCount + ' 张'
+          : slide.orientation;
+        previewCounter.textContent = (currentIndex + 1) + ' / ' + total + ' · ' + sub;
+        var multi = currentPreviewSlides.length > 1;
+        previewPrev.style.display = multi ? 'flex' : 'none';
+        previewNext.style.display = multi ? 'flex' : 'none';
       }
 
       function closePreview() {
         previewModal.classList.add('hidden');
         previewModal.classList.remove('flex');
         previewImage.src = '';
-        currentImages = [];
+        currentPreviewSlides = [];
         currentIndex = 0;
       }
 
@@ -570,25 +613,25 @@
       });
       previewPrev.addEventListener('click', function(e) {
         e.stopPropagation();
-        if (currentImages.length <= 1) return;
-        currentIndex = (currentIndex - 1 + currentImages.length) % currentImages.length;
+        if (currentPreviewSlides.length <= 1) return;
+        currentIndex = (currentIndex - 1 + currentPreviewSlides.length) % currentPreviewSlides.length;
         updatePreview();
       });
       previewNext.addEventListener('click', function(e) {
         e.stopPropagation();
-        if (currentImages.length <= 1) return;
-        currentIndex = (currentIndex + 1) % currentImages.length;
+        if (currentPreviewSlides.length <= 1) return;
+        currentIndex = (currentIndex + 1) % currentPreviewSlides.length;
         updatePreview();
       });
       document.addEventListener('keydown', function(e) {
         if (previewModal.classList.contains('hidden')) return;
         if (e.key === 'Escape') closePreview();
-        if (e.key === 'ArrowLeft' && currentImages.length > 1) {
-          currentIndex = (currentIndex - 1 + currentImages.length) % currentImages.length;
+        if (e.key === 'ArrowLeft' && currentPreviewSlides.length > 1) {
+          currentIndex = (currentIndex - 1 + currentPreviewSlides.length) % currentPreviewSlides.length;
           updatePreview();
         }
-        if (e.key === 'ArrowRight' && currentImages.length > 1) {
-          currentIndex = (currentIndex + 1) % currentImages.length;
+        if (e.key === 'ArrowRight' && currentPreviewSlides.length > 1) {
+          currentIndex = (currentIndex + 1) % currentPreviewSlides.length;
           updatePreview();
         }
       });

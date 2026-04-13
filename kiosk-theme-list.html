@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>屏保 - 前厅管理中心</title>
+  <title>屏保 - 营销中心</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="assets/common.css" />
   <script>
@@ -25,7 +25,7 @@
         <a href="material.html" class="menu-item px-3 py-2 text-gray-600 flex items-center justify-between rounded-ant hover:bg-gray-100"><span>图片素材</span></a>
         <div class="nav-group">
           <div class="nav-group-title menu-item px-3 py-2 text-gray-600 flex items-center justify-between cursor-pointer hover:bg-gray-100 rounded-ant" onclick="this.parentElement.classList.toggle('collapsed')">
-            <span>前厅管理中心</span>
+            <span>营销中心</span>
             <span class="nav-arrow text-xs transition-transform">⌄</span>
           </div>
           <div class="nav-group-items pl-3 space-y-0.5">
@@ -127,7 +127,35 @@
         </div>
         <button type="button" id="retryFailedBtn" class="hidden px-3 py-1 text-xs rounded-ant bg-primary text-white hover:bg-blue-600">重新下发失败门店</button>
       </div>
+      <div class="px-4 py-3 border-b border-gray-100 space-y-2 flex-shrink-0 bg-gray-50/50">
+        <div class="flex flex-wrap gap-2 items-center">
+          <label for="storesFilterStatus" class="text-xs text-gray-500 whitespace-nowrap">下发状态</label>
+          <select id="storesFilterStatus" class="min-w-[112px] px-2 py-1.5 border border-gray-200 rounded-ant text-sm bg-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" aria-label="按下发状态筛选">
+            <option value="">全部</option>
+            <option value="success">成功</option>
+            <option value="pending">下发中</option>
+            <option value="failed">失败</option>
+          </select>
+          <label for="storesMidSearch" class="text-xs text-gray-500 whitespace-nowrap">MID</label>
+          <input type="text" id="storesMidSearch" placeholder="输入 MID 搜索" class="min-w-[120px] flex-1 max-w-[200px] px-2 py-1.5 border border-gray-200 rounded-ant text-sm bg-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" autocomplete="off" aria-label="按 MID 搜索门店" />
+          <button type="button" id="storesFilterReset" class="px-2.5 py-1.5 text-xs rounded-ant border border-gray-200 bg-white hover:bg-gray-50 text-gray-600">重置</button>
+        </div>
+        <p id="storesFilteredHint" class="text-xs text-gray-400 hidden" aria-live="polite"></p>
+      </div>
       <div id="storesListContainer" class="flex-1 overflow-auto p-4 space-y-2"></div>
+    </div>
+  </div>
+  <!-- 删除屏保二次确认（不使用浏览器 confirm） -->
+  <div id="deleteConfirmModal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/50 p-4" aria-hidden="true">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-sm" role="dialog" aria-modal="true" aria-labelledby="deleteConfirmTitle">
+      <div class="px-4 py-3 border-b border-gray-200">
+        <h3 id="deleteConfirmTitle" class="font-semibold text-gray-800">删除屏保</h3>
+      </div>
+      <p class="px-4 py-4 text-sm text-gray-600 leading-relaxed">确定删除屏保主题「<strong id="deleteConfirmThemeName" class="text-gray-800 font-medium"></strong>」吗？删除后不可恢复。</p>
+      <div class="px-4 py-3 border-t border-gray-100 flex justify-end gap-2">
+        <button type="button" id="deleteConfirmCancel" class="px-4 py-2 rounded-ant border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1">取消</button>
+        <button type="button" id="deleteConfirmOk" class="px-4 py-2 rounded-ant bg-red-600 text-white text-sm hover:bg-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-1">删除</button>
+      </div>
     </div>
   </div>
   <script>
@@ -135,6 +163,37 @@
       var STORAGE_KEY = 'kiosk_themes';
       var currentPage = 1;
       var pageSize = 20;
+      var pendingDeleteThemeId = null;
+
+      var deleteConfirmModal = document.getElementById('deleteConfirmModal');
+      var deleteConfirmThemeName = document.getElementById('deleteConfirmThemeName');
+      var deleteConfirmCancel = document.getElementById('deleteConfirmCancel');
+      var deleteConfirmOk = document.getElementById('deleteConfirmOk');
+
+      function openDeleteConfirmModal() {
+        if (!deleteConfirmModal) return;
+        deleteConfirmModal.classList.remove('hidden');
+        deleteConfirmModal.classList.add('flex');
+        deleteConfirmModal.setAttribute('aria-hidden', 'false');
+        if (deleteConfirmOk) deleteConfirmOk.focus();
+      }
+
+      function closeDeleteConfirmModal() {
+        pendingDeleteThemeId = null;
+        if (!deleteConfirmModal) return;
+        deleteConfirmModal.classList.add('hidden');
+        deleteConfirmModal.classList.remove('flex');
+        deleteConfirmModal.setAttribute('aria-hidden', 'true');
+      }
+
+      function executeDeleteTheme() {
+        if (!pendingDeleteThemeId) return;
+        var id = pendingDeleteThemeId;
+        var list = getThemes().filter(function(t) { return t.id !== id; });
+        saveThemes(list);
+        closeDeleteConfirmModal();
+        render();
+      }
 
       function getThemes() {
         try {
@@ -412,10 +471,12 @@
             var card = this.closest('.screensaver-card');
             var id = card && card.getAttribute('data-id');
             if (!id) return;
-            if (!confirm('确定删除该屏保主题？')) return;
-            var list = getThemes().filter(function(t) { return t.id !== id; });
-            saveThemes(list);
-            render();
+            container.querySelectorAll('.dropdown-menu').forEach(function(m) { m.classList.add('hidden'); });
+            pendingDeleteThemeId = id;
+            var titleEl = card.querySelector('h3');
+            var nameText = titleEl ? titleEl.textContent.trim() : '';
+            if (deleteConfirmThemeName) deleteConfirmThemeName.textContent = nameText || '未命名主题';
+            openDeleteConfirmModal();
           });
         });
 
@@ -517,9 +578,62 @@
 
       var currentModalThemeId = null;
       var retryFailedBtn = document.getElementById('retryFailedBtn');
+      var storesFilterStatusEl = document.getElementById('storesFilterStatus');
+      var storesMidSearchEl = document.getElementById('storesMidSearch');
+      var storesFilterResetEl = document.getElementById('storesFilterReset');
+      var storesFilteredHintEl = document.getElementById('storesFilteredHint');
+
+      var storesModalStatusMap = {
+        'success': { text: '成功', color: 'bg-green-100 text-green-700' },
+        'pending': { text: '下发中', color: 'bg-yellow-100 text-yellow-700' },
+        'failed': { text: '失败', color: 'bg-red-100 text-red-700' }
+      };
+
+      function renderStoresModalList() {
+        if (!currentModalThemeId || !storesListContainer) return;
+        var themes = getThemes();
+        var theme = themes.find(function(t) { return t.id === currentModalThemeId; });
+        if (!theme || !theme.distributedStores) {
+          storesListContainer.innerHTML = '';
+          if (storesFilteredHintEl) storesFilteredHintEl.classList.add('hidden');
+          return;
+        }
+        var stores = theme.distributedStores;
+        var statusVal = storesFilterStatusEl ? storesFilterStatusEl.value : '';
+        var midQ = (storesMidSearchEl && storesMidSearchEl.value) ? storesMidSearchEl.value.trim().toLowerCase() : '';
+        var filtered = stores.filter(function(s) {
+          if (statusVal && s.status !== statusVal) return false;
+          if (midQ && String(s.mid || '').toLowerCase().indexOf(midQ) < 0) return false;
+          return true;
+        });
+        storesListContainer.innerHTML = filtered.length
+          ? filtered.map(function(store) {
+              var st = storesModalStatusMap[store.status] || { text: store.status, color: 'bg-gray-100 text-gray-600' };
+              var successTimeHtml = (store.status === 'success' && store.successTime) ? '<div class="text-gray-500 text-xs mt-1">下发成功: ' + escapeHtml(store.successTime) + '</div>' : '';
+              return '<div class="flex items-center justify-between p-3 bg-gray-50 rounded-ant">' +
+                '<div>' +
+                  '<div class="font-medium text-gray-800">' + escapeHtml(store.name) + '</div>' +
+                  '<div class="text-gray-500 text-xs mt-0.5">MID: ' + escapeHtml(store.mid) + '</div>' +
+                  successTimeHtml +
+                '</div>' +
+                '<span class="px-2 py-0.5 rounded text-xs font-medium ' + st.color + '">' + st.text + '</span>' +
+              '</div>';
+            }).join('')
+          : '<p class="text-center text-sm text-gray-500 py-8 px-2">无匹配门店，请调整下发状态或 MID 关键词</p>';
+        if (storesFilteredHintEl) {
+          if (filtered.length < stores.length || statusVal || midQ) {
+            storesFilteredHintEl.textContent = '当前显示 ' + filtered.length + ' / ' + stores.length + ' 家门店';
+            storesFilteredHintEl.classList.remove('hidden');
+          } else {
+            storesFilteredHintEl.classList.add('hidden');
+          }
+        }
+      }
 
       function openStoresModal(themeId) {
         currentModalThemeId = themeId;
+        if (storesFilterStatusEl) storesFilterStatusEl.value = '';
+        if (storesMidSearchEl) storesMidSearchEl.value = '';
         var themes = getThemes();
         var theme = themes.find(function(t) { return t.id === themeId; });
         if (!theme || !theme.distributedStores) return;
@@ -536,23 +650,7 @@
         } else {
           retryFailedBtn.classList.add('hidden');
         }
-        var statusMap = {
-          'success': { text: '成功', color: 'bg-green-100 text-green-700' },
-          'pending': { text: '下发中', color: 'bg-yellow-100 text-yellow-700' },
-          'failed': { text: '失败', color: 'bg-red-100 text-red-700' }
-        };
-        storesListContainer.innerHTML = stores.map(function(store) {
-          var st = statusMap[store.status] || { text: store.status, color: 'bg-gray-100 text-gray-600' };
-          var successTimeHtml = (store.status === 'success' && store.successTime) ? '<div class="text-gray-500 text-xs mt-1">下发成功: ' + escapeHtml(store.successTime) + '</div>' : '';
-          return '<div class="flex items-center justify-between p-3 bg-gray-50 rounded-ant">' +
-            '<div>' +
-              '<div class="font-medium text-gray-800">' + escapeHtml(store.name) + '</div>' +
-              '<div class="text-gray-500 text-xs mt-0.5">MID: ' + escapeHtml(store.mid) + '</div>' +
-              successTimeHtml +
-            '</div>' +
-            '<span class="px-2 py-0.5 rounded text-xs font-medium ' + st.color + '">' + st.text + '</span>' +
-          '</div>';
-        }).join('');
+        renderStoresModalList();
         storesModal.classList.remove('hidden');
         storesModal.classList.add('flex');
       }
@@ -589,6 +687,24 @@
           retryFailedStores();
         }
       });
+
+      if (storesFilterStatusEl) {
+        storesFilterStatusEl.addEventListener('change', function() {
+          if (storesModal.classList.contains('flex')) renderStoresModalList();
+        });
+      }
+      if (storesMidSearchEl) {
+        storesMidSearchEl.addEventListener('input', function() {
+          if (storesModal.classList.contains('flex')) renderStoresModalList();
+        });
+      }
+      if (storesFilterResetEl) {
+        storesFilterResetEl.addEventListener('click', function() {
+          if (storesFilterStatusEl) storesFilterStatusEl.value = '';
+          if (storesMidSearchEl) storesMidSearchEl.value = '';
+          renderStoresModalList();
+        });
+      }
 
       function closeStoresModal() {
         storesModal.classList.add('hidden');
@@ -712,6 +828,25 @@
         document.getElementById('filterEndDate').value = '';
         currentPage = 1;
         render();
+      });
+
+      if (deleteConfirmCancel) {
+        deleteConfirmCancel.addEventListener('click', closeDeleteConfirmModal);
+      }
+      if (deleteConfirmOk) {
+        deleteConfirmOk.addEventListener('click', executeDeleteTheme);
+      }
+      if (deleteConfirmModal) {
+        deleteConfirmModal.addEventListener('click', function(e) {
+          if (e.target === deleteConfirmModal) closeDeleteConfirmModal();
+        });
+      }
+      document.addEventListener('keydown', function(e) {
+        if (!deleteConfirmModal || deleteConfirmModal.classList.contains('hidden')) return;
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          closeDeleteConfirmModal();
+        }
       });
 
       render();

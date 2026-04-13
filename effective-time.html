@@ -51,7 +51,6 @@
             <div class="flex flex-wrap gap-2 items-center">
               <input type="date" id="startDateInput" class="flex-1 min-w-[140px] px-3 py-2 border border-gray-200 rounded-ant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" title="选择年月日" />
               <input type="time" id="startTimeInput" class="w-28 px-3 py-2 border border-gray-200 rounded-ant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" title="选择时分" />
-              <button type="button" id="btnNowStart" class="px-3 py-2 border border-gray-200 rounded-ant hover:bg-gray-50 text-sm">Now</button>
             </div>
           </div>
           <div>
@@ -59,13 +58,25 @@
             <div class="flex flex-wrap gap-2 items-center">
               <input type="date" id="endDateInput" class="flex-1 min-w-[140px] px-3 py-2 border border-gray-200 rounded-ant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" title="选择年月日" />
               <input type="time" id="endTimeInput" class="w-28 px-3 py-2 border border-gray-200 rounded-ant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" title="选择时分" />
-              <button type="button" id="btnNowEnd" class="px-3 py-2 border border-gray-200 rounded-ant hover:bg-gray-50 text-sm">Now</button>
             </div>
           </div>
           <p class="text-gray-500 text-xs">点击日期框选择年/月/日，点击时间框选择时/分</p>
         </div>
       </div>
     </main>
+  </div>
+  <!-- 完成下发二次确认（不使用浏览器 confirm） -->
+  <div id="submitConfirmModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-4" aria-hidden="true">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-sm" role="dialog" aria-modal="true" aria-labelledby="submitConfirmTitle">
+      <div class="px-4 py-3 border-b border-gray-200">
+        <h3 id="submitConfirmTitle" class="font-semibold text-gray-800">确认下发</h3>
+      </div>
+      <p class="px-4 py-4 text-sm text-gray-600 leading-relaxed">确认将屏保下发到已选门店？确认后将保存下发与生效设置并返回列表。</p>
+      <div class="px-4 py-3 border-t border-gray-100 flex justify-end gap-2">
+        <button type="button" id="submitConfirmCancel" class="px-4 py-2 rounded-ant border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1">取消</button>
+        <button type="button" id="submitConfirmOk" class="px-4 py-2 rounded-ant bg-primary text-white text-sm hover:bg-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1">确定</button>
+      </div>
+    </div>
   </div>
   <script>
     (function() {
@@ -164,9 +175,6 @@
         if (endTimeInput) endTimeInput.value = tStr;
         applyEndMin();
       }
-      if (document.getElementById('btnNowStart')) document.getElementById('btnNowStart').addEventListener('click', setStartNow);
-      if (document.getElementById('btnNowEnd')) document.getElementById('btnNowEnd').addEventListener('click', setEndNow);
-
       if (startDateInput && !startDateInput.value) {
         if (distributeDate && distributeTime) {
           startDateInput.value = distributeDate;
@@ -180,6 +188,100 @@
 
       applyStartMin();
       applyEndMin();
+
+      var submitConfirmModal = document.getElementById('submitConfirmModal');
+      var submitConfirmOk = document.getElementById('submitConfirmOk');
+      var submitConfirmCancel = document.getElementById('submitConfirmCancel');
+
+      function openSubmitConfirmModal() {
+        if (!submitConfirmModal) return;
+        submitConfirmModal.classList.remove('hidden');
+        submitConfirmModal.classList.add('flex');
+        submitConfirmModal.setAttribute('aria-hidden', 'false');
+        if (submitConfirmOk) submitConfirmOk.focus();
+      }
+
+      function closeSubmitConfirmModal() {
+        if (!submitConfirmModal) return;
+        submitConfirmModal.classList.add('hidden');
+        submitConfirmModal.classList.remove('flex');
+        submitConfirmModal.setAttribute('aria-hidden', 'true');
+      }
+
+      function executeSubmitDistribute() {
+        var themeId = '';
+        try { themeId = localStorage.getItem('current_theme_id_for_distribute') || ''; } catch (e) {}
+        if (themeId) {
+          var raw = localStorage.getItem('kiosk_themes');
+          var themes = raw ? JSON.parse(raw) : [];
+          var theme = themes.filter(function(t) { return t.id === themeId; })[0];
+          if (theme) {
+            var distDate = localStorage.getItem('distribute_date') || '';
+            var distTime = localStorage.getItem('distribute_time') || '';
+            theme.distributeTime = (distDate && distTime) ? distDate.replace(/-/g, '/') + ' ' + distTime : '--';
+            var nowRadioEl = document.querySelector('input[name="effectiveType"][value="now"]');
+            if (nowRadioEl && nowRadioEl.checked) {
+              theme.effectTime = '立即生效';
+            } else if (startDateInput && startTimeInput && endDateInput && endTimeInput) {
+              var sD = startDateInput.value.replace(/-/g, '/');
+              var sT = startTimeInput.value;
+              var eD = endDateInput.value.replace(/-/g, '/');
+              var eT = endTimeInput.value;
+              theme.effectTime = (sD && sT && eD && eT) ? sD + ' ' + sT + ' - ' + eD + ' ' + eT : (theme.effectTime || '--');
+            }
+            var selectedChannels = [];
+            try {
+              selectedChannels = JSON.parse(localStorage.getItem('selected_channels_for_distribute') || '[]');
+            } catch (e) {}
+            theme.distributeChannels = Array.isArray(selectedChannels) ? selectedChannels : [];
+            var selectedStores = [];
+            try {
+              selectedStores = JSON.parse(localStorage.getItem('selected_stores_for_distribute') || '[]');
+            } catch (e) {}
+            var scenarioRand = Math.random();
+            var scenario;
+            if (scenarioRand < 0.2) {
+              scenario = 'all_success';
+            } else if (scenarioRand < 0.5) {
+              scenario = 'partial_fail';
+            } else if (scenarioRand < 0.7) {
+              scenario = 'all_fail';
+            } else {
+              scenario = 'pending';
+            }
+            function formatSuccessTime(d) {
+              var y = d.getFullYear();
+              var m = String(d.getMonth() + 1).padStart(2, '0');
+              var day = String(d.getDate()).padStart(2, '0');
+              var h = String(d.getHours()).padStart(2, '0');
+              var min = String(d.getMinutes()).padStart(2, '0');
+              var s = String(d.getSeconds()).padStart(2, '0');
+              return y + '/' + m + '/' + day + ' ' + h + ':' + min + ':' + s;
+            }
+            theme.distributedStores = selectedStores.map(function(store, idx) {
+              var status;
+              if (scenario === 'all_success') {
+                status = 'success';
+              } else if (scenario === 'all_fail') {
+                status = 'failed';
+              } else if (scenario === 'partial_fail') {
+                status = (idx % 2 === 0) ? 'success' : 'failed';
+              } else {
+                var r = Math.random();
+                status = r < 0.4 ? 'success' : (r < 0.7 ? 'pending' : 'failed');
+              }
+              var item = { name: store.name, mid: store.mid, status: status };
+              if (status === 'success') item.successTime = formatSuccessTime(new Date());
+              return item;
+            });
+            localStorage.setItem('kiosk_themes', JSON.stringify(themes));
+            try { localStorage.removeItem('selected_stores_for_distribute'); } catch (e) {}
+            try { localStorage.removeItem('selected_channels_for_distribute'); } catch (e) {}
+          }
+          try { localStorage.removeItem('current_theme_id_for_distribute'); } catch (e) {}
+        }
+        window.location.href = 'kiosk-theme-list.html?done=1';
+      }
 
       document.getElementById('submitBtn').addEventListener('click', function(e) {
         e.preventDefault();
@@ -199,79 +301,28 @@
             return;
           }
         }
-        if (confirm('确认下发屏保到已选门店？')) {
-          var themeId = '';
-          try { themeId = localStorage.getItem('current_theme_id_for_distribute') || ''; } catch (e) {}
-          if (themeId) {
-            var raw = localStorage.getItem('kiosk_themes');
-            var themes = raw ? JSON.parse(raw) : [];
-            var theme = themes.filter(function(t) { return t.id === themeId; })[0];
-            if (theme) {
-              var distDate = localStorage.getItem('distribute_date') || '';
-              var distTime = localStorage.getItem('distribute_time') || '';
-              theme.distributeTime = (distDate && distTime) ? distDate.replace(/-/g, '/') + ' ' + distTime : '--';
-              var nowRadio = document.querySelector('input[name="effectiveType"][value="now"]');
-              if (nowRadio && nowRadio.checked) {
-                theme.effectTime = '立即生效';
-              } else if (startDateInput && startTimeInput && endDateInput && endTimeInput) {
-                var sD = startDateInput.value.replace(/-/g, '/');
-                var sT = startTimeInput.value;
-                var eD = endDateInput.value.replace(/-/g, '/');
-                var eT = endTimeInput.value;
-                theme.effectTime = (sD && sT && eD && eT) ? sD + ' ' + sT + ' - ' + eD + ' ' + eT : (theme.effectTime || '--');
-              }
-              var selectedChannels = [];
-              try {
-                selectedChannels = JSON.parse(localStorage.getItem('selected_channels_for_distribute') || '[]');
-              } catch (e) {}
-              theme.distributeChannels = Array.isArray(selectedChannels) ? selectedChannels : [];
-              var selectedStores = [];
-              try {
-                selectedStores = JSON.parse(localStorage.getItem('selected_stores_for_distribute') || '[]');
-              } catch (e) {}
-              var scenarioRand = Math.random();
-              var scenario;
-              if (scenarioRand < 0.2) {
-                scenario = 'all_success';
-              } else if (scenarioRand < 0.5) {
-                scenario = 'partial_fail';
-              } else if (scenarioRand < 0.7) {
-                scenario = 'all_fail';
-              } else {
-                scenario = 'pending';
-              }
-              function formatSuccessTime(d) {
-                var y = d.getFullYear();
-                var m = String(d.getMonth() + 1).padStart(2, '0');
-                var day = String(d.getDate()).padStart(2, '0');
-                var h = String(d.getHours()).padStart(2, '0');
-                var min = String(d.getMinutes()).padStart(2, '0');
-                var s = String(d.getSeconds()).padStart(2, '0');
-                return y + '/' + m + '/' + day + ' ' + h + ':' + min + ':' + s;
-              }
-              theme.distributedStores = selectedStores.map(function(store, idx) {
-                var status;
-                if (scenario === 'all_success') {
-                  status = 'success';
-                } else if (scenario === 'all_fail') {
-                  status = 'failed';
-                } else if (scenario === 'partial_fail') {
-                  status = (idx % 2 === 0) ? 'success' : 'failed';
-                } else {
-                  var r = Math.random();
-                  status = r < 0.4 ? 'success' : (r < 0.7 ? 'pending' : 'failed');
-                }
-                var item = { name: store.name, mid: store.mid, status: status };
-                if (status === 'success') item.successTime = formatSuccessTime(new Date());
-                return item;
-              });
-              localStorage.setItem('kiosk_themes', JSON.stringify(themes));
-              try { localStorage.removeItem('selected_stores_for_distribute'); } catch (e) {}
-              try { localStorage.removeItem('selected_channels_for_distribute'); } catch (e) {}
-            }
-            try { localStorage.removeItem('current_theme_id_for_distribute'); } catch (e) {}
-          }
-          window.location.href = 'kiosk-theme-list.html?done=1';
+        openSubmitConfirmModal();
+      });
+
+      if (submitConfirmCancel) {
+        submitConfirmCancel.addEventListener('click', closeSubmitConfirmModal);
+      }
+      if (submitConfirmOk) {
+        submitConfirmOk.addEventListener('click', function() {
+          closeSubmitConfirmModal();
+          executeSubmitDistribute();
+        });
+      }
+      if (submitConfirmModal) {
+        submitConfirmModal.addEventListener('click', function(e) {
+          if (e.target === submitConfirmModal) closeSubmitConfirmModal();
+        });
+      }
+      document.addEventListener('keydown', function(e) {
+        if (!submitConfirmModal || submitConfirmModal.classList.contains('hidden')) return;
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          closeSubmitConfirmModal();
         }
       });
     })();

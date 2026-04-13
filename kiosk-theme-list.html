@@ -156,8 +156,22 @@
           <button type="button" id="storesFilterReset" class="px-2.5 py-1.5 text-xs rounded-ant border border-gray-200 bg-white hover:bg-gray-50 text-gray-600">重置</button>
         </div>
         <p id="storesFilteredHint" class="text-xs text-gray-400 hidden" aria-live="polite"></p>
+        <p class="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-ant px-2 py-1.5">下发成功的门店支持<strong>单个</strong>下架 / 重新上架，或在下架后从记录中<strong>删除</strong>；不支持在此修改门店名称或 MID。</p>
       </div>
       <div id="storesListContainer" class="flex-1 overflow-auto p-4 space-y-2"></div>
+    </div>
+  </div>
+  <!-- 从下发记录移除门店确认 -->
+  <div id="storeRemoveConfirmModal" class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/50 p-4" aria-hidden="true">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-sm" role="dialog" aria-modal="true" aria-labelledby="storeRemoveTitle">
+      <div class="px-4 py-3 border-b border-gray-200">
+        <h3 id="storeRemoveTitle" class="font-semibold text-gray-800">移除门店</h3>
+      </div>
+      <p class="px-4 py-4 text-sm text-gray-600">确定从该屏保的下发记录中移除此门店？</p>
+      <div class="px-4 py-3 border-t border-gray-100 flex justify-end gap-2">
+        <button type="button" id="storeRemoveCancel" class="px-4 py-2 rounded-ant border border-gray-200 text-sm hover:bg-gray-50">取消</button>
+        <button type="button" id="storeRemoveOk" class="px-4 py-2 rounded-ant bg-red-600 text-white text-sm hover:bg-red-700">移除</button>
+      </div>
     </div>
   </div>
   <!-- 删除屏保二次确认（不使用浏览器 confirm） -->
@@ -303,6 +317,13 @@
         return { text: '已生效', color: 'bg-green-100 text-green-700' };
       }
 
+      /** 生效状态为「已生效」且屏保未做展示下架时，列表仅允许「下架」操作 */
+      function isThemeEffectActiveOnShelf(theme) {
+        if (!theme) return false;
+        var es = computeEffectStatus(theme.effectTime, theme.distributeTime, theme.distributedStores);
+        return !!(es && es.text === '已生效' && theme.effectShelfStatus !== 'off_shelf');
+      }
+
       function render() {
         var list = getThemes();
         var emptyState = document.getElementById('emptyState');
@@ -422,12 +443,19 @@
           var channelsStr = (t.distributeChannels && t.distributeChannels.length) ? t.distributeChannels.join('、') : '--';
           var distStatus = computeDistributeStatus(t.distributeTime, t.distributedStores);
           var effectStatus = computeEffectStatus(t.effectTime, t.distributeTime, t.distributedStores);
+          var themeEffectLocked = isThemeEffectActiveOnShelf(t);
+          var showEffectRelist = !!(effectStatus && effectStatus.text === '已生效' && t.effectShelfStatus === 'off_shelf');
           var distStatusBadge = distStatus
             ? '<span class="inline-block px-2 py-0.5 rounded text-xs font-medium ' + distStatus.color + '">' + distStatus.text + '</span>'
             : '<span class="text-gray-400">—</span>';
-          var effStatusBadge = effectStatus
-            ? '<span class="inline-block px-2 py-0.5 rounded text-xs font-medium ' + effectStatus.color + '">' + effectStatus.text + '</span>'
-            : '<span class="text-gray-400">—</span>';
+          var effStatusBadge;
+          if (effectStatus && effectStatus.text === '已生效' && t.effectShelfStatus === 'off_shelf') {
+            effStatusBadge = '<span class="inline-block px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">已生效（展示已下架）</span>';
+          } else if (effectStatus) {
+            effStatusBadge = '<span class="inline-block px-2 py-0.5 rounded text-xs font-medium ' + effectStatus.color + '">' + effectStatus.text + '</span>';
+          } else {
+            effStatusBadge = '<span class="text-gray-400">—</span>';
+          }
 
           var hasPortrait = t.portraitImages && t.portraitImages.length;
           var hasLandscape = t.landscapeImages && t.landscapeImages.length;
@@ -461,6 +489,18 @@
             '</div>';
           }
 
+          var dropdownInner = '';
+          if (themeEffectLocked) {
+            dropdownInner = '<button type="button" class="theme-effect-off-shelf-btn block w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-gray-800" data-theme-id="' + escapeHtml(t.id) + '">下架</button>';
+          } else {
+            if (showEffectRelist) {
+              dropdownInner += '<button type="button" class="theme-effect-on-shelf-btn block w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-primary font-medium" data-theme-id="' + escapeHtml(t.id) + '">重新上架</button>';
+            }
+            dropdownInner += '<a href="screensaver-edit.html?id=' + encodeURIComponent(t.id) + '" class="block px-3 py-2 text-sm hover:bg-gray-50">编辑屏保</a>' +
+              '<a href="store-select.html?themeId=' + encodeURIComponent(t.id) + '" class="block px-3 py-2 text-sm hover:bg-gray-50">下发门店</a>' +
+              '<button type="button" class="delete-btn block w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-red-600">删除</button>';
+          }
+
           return '<div class="screensaver-card border border-gray-100 p-4 flex gap-4" data-id="' + escapeHtml(t.id) + '">' +
             imageSection +
             '<div class="flex-1 min-w-0">' +
@@ -480,9 +520,7 @@
             '<div class="relative flex-shrink-0 self-start">' +
               '<button type="button" class="more-btn p-2 rounded hover:bg-gray-100 text-gray-500" aria-label="更多">⋯</button>' +
               '<div class="dropdown-menu hidden absolute right-0 top-full mt-1 py-1 bg-white border border-gray-200 rounded-ant shadow-lg z-10 min-w-[120px]">' +
-                '<a href="screensaver-edit.html?id=' + encodeURIComponent(t.id) + '" class="block px-3 py-2 text-sm hover:bg-gray-50">编辑屏保</a>' +
-                '<a href="store-select.html?themeId=' + encodeURIComponent(t.id) + '" class="block px-3 py-2 text-sm hover:bg-gray-50">下发门店</a>' +
-                '<button type="button" class="delete-btn block w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-red-600">删除</button>' +
+                dropdownInner +
               '</div>' +
             '</div>' +
           '</div>';
@@ -500,6 +538,32 @@
             if (!menu || !menu.classList.contains('dropdown-menu')) return;
             container.querySelectorAll('.dropdown-menu').forEach(function(m) { m.classList.add('hidden'); });
             menu.classList.toggle('hidden');
+          });
+        });
+        container.querySelectorAll('.theme-effect-off-shelf-btn').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            var id = this.getAttribute('data-theme-id');
+            if (!id) return;
+            container.querySelectorAll('.dropdown-menu').forEach(function(m) { m.classList.add('hidden'); });
+            var themes = getThemes();
+            var th = themes.find(function(x) { return x.id === id; });
+            if (!th || !isThemeEffectActiveOnShelf(th)) return;
+            th.effectShelfStatus = 'off_shelf';
+            saveThemes(themes);
+            render();
+          });
+        });
+        container.querySelectorAll('.theme-effect-on-shelf-btn').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            var id = this.getAttribute('data-theme-id');
+            if (!id) return;
+            container.querySelectorAll('.dropdown-menu').forEach(function(m) { m.classList.add('hidden'); });
+            var themes = getThemes();
+            var th = themes.find(function(x) { return x.id === id; });
+            if (!th) return;
+            delete th.effectShelfStatus;
+            saveThemes(themes);
+            render();
           });
         });
         container.querySelectorAll('.delete-btn').forEach(function(btn) {
@@ -708,6 +772,10 @@
       var storesMidSearchEl = document.getElementById('storesMidSearch');
       var storesFilterResetEl = document.getElementById('storesFilterReset');
       var storesFilteredHintEl = document.getElementById('storesFilteredHint');
+      var storeRemoveConfirmModal = document.getElementById('storeRemoveConfirmModal');
+      var storeRemoveCancel = document.getElementById('storeRemoveCancel');
+      var storeRemoveOk = document.getElementById('storeRemoveOk');
+      var pendingRemoveStoreMid = null;
 
       var storesModalStatusMap = {
         'success': { text: '成功', color: 'bg-green-100 text-green-700' },
@@ -723,6 +791,22 @@
           return '<div class="flex items-center justify-between text-xs mt-1"><span class="text-gray-500 truncate pr-2" title="' + escapeHtml(cs.channel || '') + '">' + escapeHtml(cs.channel || '—') + '</span><span class="flex-shrink-0 px-1.5 py-0.5 rounded font-medium ' + st.color + '">' + st.text + '</span></div>';
         }).join('');
         return '<div class="mt-2 pt-2 border-t border-gray-100"><div class="text-xs text-gray-400 mb-0.5">各渠道下发</div>' + rows + '</div>';
+      }
+
+      function renderStoreShelfActions(store) {
+        if (store.status !== 'success') return '';
+        var midAttr = escapeHtml(String(store.mid || ''));
+        if (store.shelfStatus === 'off_shelf') {
+          return '<div class="mt-2 pt-2 border-t border-gray-100 flex flex-wrap items-center gap-2">' +
+            '<span class="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded">已下架</span>' +
+            '<button type="button" data-store-action="on_shelf" data-store-mid="' + midAttr + '" class="text-xs px-2 py-1 rounded-ant border border-gray-300 hover:bg-gray-100 text-gray-700">重新上架</button>' +
+            '<button type="button" data-store-action="remove" data-store-mid="' + midAttr + '" class="text-xs px-2 py-1 rounded-ant border border-red-200 text-red-600 hover:bg-red-50">删除</button>' +
+            '</div>';
+        }
+        return '<div class="mt-2 pt-2 border-t border-gray-100 flex flex-wrap items-center gap-2">' +
+          '<span class="text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-100">已上架</span>' +
+          '<button type="button" data-store-action="off_shelf" data-store-mid="' + midAttr + '" class="text-xs px-2 py-1 rounded-ant border border-gray-300 hover:bg-gray-100 text-gray-700">下架</button>' +
+          '</div>';
       }
 
       function renderStoresModalList() {
@@ -747,6 +831,7 @@
               var st = storesModalStatusMap[store.status] || { text: store.status, color: 'bg-gray-100 text-gray-600' };
               var successTimeHtml = (store.status === 'success' && store.successTime) ? '<div class="text-gray-500 text-xs mt-1">下发成功: ' + escapeHtml(store.successTime) + '</div>' : '';
               var channelBlock = renderStoreChannelRows(store);
+              var shelfBlock = renderStoreShelfActions(store);
               return '<div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 p-3 bg-gray-50 rounded-ant">' +
                 '<div class="flex-1 min-w-0">' +
                   '<div class="flex items-start justify-between gap-2">' +
@@ -758,6 +843,7 @@
                     '<span class="flex-shrink-0 px-2 py-0.5 rounded text-xs font-medium self-start ' + st.color + '">门店：' + st.text + '</span>' +
                   '</div>' +
                   channelBlock +
+                  shelfBlock +
                 '</div>' +
               '</div>';
             }).join('')
@@ -773,12 +859,12 @@
       }
 
       function openStoresModal(themeId) {
-        currentModalThemeId = themeId;
-        if (storesFilterStatusEl) storesFilterStatusEl.value = '';
-        if (storesMidSearchEl) storesMidSearchEl.value = '';
         var themes = getThemes();
         var theme = themes.find(function(t) { return t.id === themeId; });
         if (!theme || !theme.distributedStores) return;
+        currentModalThemeId = themeId;
+        if (storesFilterStatusEl) storesFilterStatusEl.value = '';
+        if (storesMidSearchEl) storesMidSearchEl.value = '';
         var stores = theme.distributedStores;
         var successCount = stores.filter(function(s) { return s.status === 'success'; }).length;
         var pendingCount = stores.filter(function(s) { return s.status === 'pending'; }).length;
@@ -816,7 +902,10 @@
           if (store.status === 'failed') {
             var rand = Math.random();
             store.status = rand < 0.7 ? 'success' : (rand < 0.9 ? 'pending' : 'failed');
-            if (store.status === 'success') store.successTime = formatSuccessTime(new Date());
+            if (store.status === 'success') {
+              store.successTime = formatSuccessTime(new Date());
+              if (store.shelfStatus !== 'off_shelf') store.shelfStatus = 'on_shelf';
+            }
           }
           if (store.channelStatuses && store.channelStatuses.length) {
             store.channelStatuses = store.channelStatuses.map(function(ch) {
@@ -858,7 +947,87 @@
         });
       }
 
+      function closeStoreRemoveConfirm() {
+        pendingRemoveStoreMid = null;
+        if (!storeRemoveConfirmModal) return;
+        storeRemoveConfirmModal.classList.add('hidden');
+        storeRemoveConfirmModal.classList.remove('flex');
+        storeRemoveConfirmModal.setAttribute('aria-hidden', 'true');
+      }
+
+      function openStoreRemoveConfirm() {
+        if (!storeRemoveConfirmModal) return;
+        storeRemoveConfirmModal.classList.remove('hidden');
+        storeRemoveConfirmModal.classList.add('flex');
+        storeRemoveConfirmModal.setAttribute('aria-hidden', 'false');
+      }
+
+      storesListContainer.addEventListener('click', function(e) {
+        var btn = e.target.closest('[data-store-action]');
+        if (!btn || !storesModal.classList.contains('flex')) return;
+        e.stopPropagation();
+        var action = btn.getAttribute('data-store-action');
+        var mid = btn.getAttribute('data-store-mid');
+        if (!mid || !currentModalThemeId) return;
+        var themesList = getThemes();
+        var theme = themesList.find(function(t) { return t.id === currentModalThemeId; });
+        if (!theme || !theme.distributedStores) return;
+        var store = theme.distributedStores.find(function(s) { return String(s.mid) === String(mid); });
+        if (!store || store.status !== 'success') return;
+
+        if (action === 'off_shelf') {
+          if (store.shelfStatus === 'off_shelf') return;
+          store.shelfStatus = 'off_shelf';
+          saveThemes(themesList);
+          openStoresModal(currentModalThemeId);
+          render();
+          return;
+        }
+        if (action === 'on_shelf') {
+          if (store.shelfStatus !== 'off_shelf') return;
+          delete store.shelfStatus;
+          saveThemes(themesList);
+          openStoresModal(currentModalThemeId);
+          render();
+          return;
+        }
+        if (action === 'remove') {
+          if (store.shelfStatus !== 'off_shelf') return;
+          pendingRemoveStoreMid = mid;
+          openStoreRemoveConfirm();
+          return;
+        }
+      });
+
+      if (storeRemoveCancel) {
+        storeRemoveCancel.addEventListener('click', closeStoreRemoveConfirm);
+      }
+      if (storeRemoveConfirmModal) {
+        storeRemoveConfirmModal.addEventListener('click', function(e) {
+          if (e.target === storeRemoveConfirmModal) closeStoreRemoveConfirm();
+        });
+      }
+      if (storeRemoveOk) {
+        storeRemoveOk.addEventListener('click', function() {
+          if (!pendingRemoveStoreMid || !currentModalThemeId) {
+            closeStoreRemoveConfirm();
+            return;
+          }
+          var removeMid = pendingRemoveStoreMid;
+          var themesList = getThemes();
+          var theme = themesList.find(function(t) { return t.id === currentModalThemeId; });
+          if (theme && theme.distributedStores) {
+            theme.distributedStores = theme.distributedStores.filter(function(s) { return String(s.mid) !== String(removeMid); });
+            saveThemes(themesList);
+          }
+          closeStoreRemoveConfirm();
+          openStoresModal(currentModalThemeId);
+          render();
+        });
+      }
+
       function closeStoresModal() {
+        closeStoreRemoveConfirm();
         storesModal.classList.add('hidden');
         storesModal.classList.remove('flex');
       }
@@ -868,7 +1037,13 @@
         if (e.target === storesModal) closeStoresModal();
       });
       document.addEventListener('keydown', function(e) {
-        if (!storesModal.classList.contains('hidden') && e.key === 'Escape') closeStoresModal();
+        if (e.key !== 'Escape') return;
+        if (storeRemoveConfirmModal && storeRemoveConfirmModal.classList.contains('flex')) {
+          closeStoreRemoveConfirm();
+          e.preventDefault();
+          return;
+        }
+        if (!storesModal.classList.contains('hidden')) closeStoresModal();
       });
 
       function renderPagination(totalCount, totalPages) {

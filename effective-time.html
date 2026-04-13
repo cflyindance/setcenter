@@ -61,6 +61,7 @@
             </div>
           </div>
           <p class="text-gray-500 text-xs">点击日期框选择年/月/日，点击时间框选择时/分</p>
+          <p class="text-amber-800 bg-amber-50 border border-amber-100 rounded-ant px-3 py-2 text-xs leading-relaxed">若其他活动主题已占用<strong>相同下发渠道</strong>，则各主题的展示<strong>生效时间段不可重叠</strong>（与「立即生效」也会判为可能重叠）。</p>
         </div>
       </div>
     </main>
@@ -208,7 +209,113 @@
         submitConfirmModal.setAttribute('aria-hidden', 'true');
       }
 
+      function getThemeChannelsForOverlap(theme) {
+        if (theme && Array.isArray(theme.distributeChannels) && theme.distributeChannels.length)
+          return theme.distributeChannels;
+        return ['Kiosk'];
+      }
+
+      function parseStoredThemeEffectRange(theme) {
+        var et = theme && theme.effectTime;
+        if (!et || et === '--') return null;
+        if (et === '立即生效') {
+          var dist = theme.distributeTime;
+          if (dist && dist !== '--') {
+            var d = new Date(String(dist).replace(/\//g, '-'));
+            if (!isNaN(d.getTime())) return { start: d.getTime(), end: Infinity };
+          }
+          return { start: Date.now(), end: Infinity };
+        }
+        var parts = String(et).split(' - ');
+        if (parts.length !== 2) return null;
+        var start = new Date(parts[0].trim().replace(/\//g, '-'));
+        var end = new Date(parts[1].trim().replace(/\//g, '-'));
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
+        return { start: start.getTime(), end: end.getTime() };
+      }
+
+      function rangesOverlap(a, b) {
+        if (!a || !b) return false;
+        return a.start < b.end && b.start < a.end;
+      }
+
+      function channelsShareAny(chA, chB) {
+        if (!chA.length || !chB.length) return false;
+        for (var i = 0; i < chA.length; i++) {
+          if (chB.indexOf(chA[i]) >= 0) return true;
+        }
+        return false;
+      }
+
+      /** 返回冲突说明文案；无冲突返回 null */
+      function getEffectChannelOverlapMessage() {
+        var themeId = '';
+        try { themeId = localStorage.getItem('current_theme_id_for_distribute') || ''; } catch (e) {}
+        if (!themeId) return null;
+        var raw = '';
+        try { raw = localStorage.getItem('kiosk_themes') || ''; } catch (e) {}
+        var themes = raw ? JSON.parse(raw) : [];
+        var currentTheme = themes.filter(function(t) { return t.id === themeId; })[0];
+        if (!currentTheme) return null;
+
+        var selectedChannels = [];
+        try {
+          selectedChannels = JSON.parse(localStorage.getItem('selected_channels_for_distribute') || '[]');
+        } catch (e2) {}
+        var proposedCh = Array.isArray(selectedChannels) && selectedChannels.length ? selectedChannels.slice() : ['Kiosk'];
+
+        var nowRadioEl = document.querySelector('input[name="effectiveType"][value="now"]');
+        var proposedRange;
+        if (nowRadioEl && nowRadioEl.checked) {
+          var distDate = '';
+          var distTime = '';
+          try {
+            distDate = localStorage.getItem('distribute_date') || '';
+            distTime = localStorage.getItem('distribute_time') || '';
+          } catch (e3) {}
+          if (distDate && distTime) {
+            var distMs = new Date((distDate + 'T' + distTime + (distTime.length <= 5 ? ':00' : ''))).getTime();
+            if (!isNaN(distMs)) proposedRange = { start: distMs, end: Infinity };
+            else proposedRange = { start: Date.now(), end: Infinity };
+          } else {
+            proposedRange = { start: Date.now(), end: Infinity };
+          }
+        } else {
+          if (!startDateInput || !startTimeInput || !endDateInput || !endTimeInput) return null;
+          var sd = startDateInput.value;
+          var st = startTimeInput.value;
+          var ed = endDateInput.value;
+          var et = endTimeInput.value;
+          if (!sd || !st || !ed || !et) return null;
+          var stNorm = st.length === 5 ? st + ':00' : st;
+          var etNorm = et.length === 5 ? et + ':00' : et;
+          var startMs = new Date(sd + 'T' + stNorm).getTime();
+          var endMs = new Date(ed + 'T' + etNorm).getTime();
+          if (isNaN(startMs) || isNaN(endMs)) return null;
+          proposedRange = { start: startMs, end: endMs };
+        }
+
+        for (var i = 0; i < themes.length; i++) {
+          var t = themes[i];
+          if (t.id === themeId) continue;
+          if (!channelsShareAny(proposedCh, getThemeChannelsForOverlap(t))) continue;
+          var otherRange = parseStoredThemeEffectRange(t);
+          if (!otherRange) continue;
+          if (rangesOverlap(proposedRange, otherRange)) {
+            var name = t.name ? String(t.name) : '未命名主题';
+            var chLabel = proposedCh.join('、');
+            return '与主题「' + name + '」在相同渠道（' + chLabel + '）上的展示生效时间存在重叠，请调整生效时间或渠道后再下发。';
+          }
+        }
+        return null;
+      }
+
       function executeSubmitDistribute() {
+        var overlapMsg = getEffectChannelOverlapMessage();
+        if (overlapMsg) {
+          Toast.warning(overlapMsg);
+          return;
+        }
         var themeId = '';
         try { themeId = localStorage.getItem('current_theme_id_for_distribute') || ''; } catch (e) {}
         if (themeId) {
@@ -289,7 +396,10 @@
                 return { channel: chName, status: chStatus };
               });
               var item = { name: store.name, mid: store.mid, status: status, channelStatuses: channelStatuses };
-              if (status === 'success') item.successTime = formatSuccessTime(new Date());
+              if (status === 'success') {
+                item.successTime = formatSuccessTime(new Date());
+                item.shelfStatus = 'on_shelf';
+              }
               return item;
             });
             localStorage.setItem('kiosk_themes', JSON.stringify(themes));
@@ -319,6 +429,11 @@
             return;
           }
         }
+        var overlapMsg = getEffectChannelOverlapMessage();
+        if (overlapMsg) {
+          Toast.warning(overlapMsg);
+          return;
+        }
         openSubmitConfirmModal();
       });
 
@@ -327,6 +442,11 @@
       }
       if (submitConfirmOk) {
         submitConfirmOk.addEventListener('click', function() {
+          var overlapMsg = getEffectChannelOverlapMessage();
+          if (overlapMsg) {
+            Toast.warning(overlapMsg);
+            return;
+          }
           closeSubmitConfirmModal();
           executeSubmitDistribute();
         });

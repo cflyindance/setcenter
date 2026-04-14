@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>屏保状态与操作说明 — Mermaid 图示</title>
+  <style>
+    body { font-family: system-ui, "Segoe UI", sans-serif; margin: 0; padding: 1.5rem; background: #f8fafc; color: #1e293b; }
+    h1 { font-size: 1.25rem; margin-bottom: 0.5rem; }
+    p.intro { font-size: 0.875rem; color: #64748b; margin-bottom: 1.5rem; max-width: 48rem; }
+    section { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1.25rem; max-width: 56rem; }
+    h2 { font-size: 1rem; margin: 0 0 0.75rem; color: #0f172a; }
+    .mermaid { display: flex; justify-content: center; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>屏保状态与操作说明 — Mermaid 图示</h1>
+  <p class="intro">与 <code>屏保状态与操作说明.md</code> 中 §7.7 一致。若下图空白，请检查网络能否访问 jsDelivr CDN；内网请改为本地引入 mermaid.min.js。</p>
+
+  <section>
+    <h2>7.7.1 下发状态（典型）</h2>
+    <div class="mermaid">
+stateDiagram-v2
+  direction LR
+  [*] --> 待下发: 当前时间早于下发时间
+  待下发 --> 下发中: 到点且存在pending门店
+  下发中 --> 已下发: 全成功且无渠道级失败
+  下发中 --> 部分门店下发失败: 失败与成功或pending并存
+  下发中 --> 下发失败: 仅失败
+  下发中 --> 部分渠道下发失败: 门店全成功但有渠道失败
+  部分门店下发失败 --> 下发中: 重试后仍有pending等
+  部分门店下发失败 --> 已下发: 重试后全部成功且无渠道失败
+    </div>
+  </section>
+
+  <section>
+    <h2>7.7.2 生效状态（自定义时段）</h2>
+    <div class="mermaid">
+stateDiagram-v2
+  [*] --> 待生效: now小于开始
+  待生效 --> 已生效: now进入时间窗
+  已生效 --> 已失效: now大于结束
+    </div>
+  </section>
+
+  <section>
+    <h2>7.7.3 立即生效下的生效状态</h2>
+    <div class="mermaid">
+stateDiagram-v2
+  [*] --> 待生效: 下发仍为待下发等
+  待生效 --> 已生效: 下发脱离待下发
+    </div>
+  </section>
+
+  <section>
+    <h2>7.7.4 屏保展示在架 / 展示下架</h2>
+    <div class="mermaid">
+stateDiagram-v2
+  direction TB
+  逻辑已生效_展示在架: 已生效且未effectShelfStatus off
+  逻辑已生效_展示已下架: 已生效且effectShelfStatus off
+  逻辑已生效_展示在架 --> 逻辑已生效_展示已下架: 屏保下架
+  逻辑已生效_展示已下架 --> 逻辑已生效_展示在架: 屏保重新上架
+    </div>
+  </section>
+
+  <section>
+    <h2>7.7.5 成功门店在架 / 下架</h2>
+    <div class="mermaid">
+stateDiagram-v2
+  direction LR
+  在架: 成功且无off_shelf
+  已下架: 成功且shelfStatus off_shelf
+  在架 --> 已下架: 门店下架
+  已下架 --> 在架: 门店重新上架
+  已下架 --> 已移除: 从记录删除
+    </div>
+  </section>
+
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'neutral',
+      securityLevel: 'loose',
+      fontFamily: 'system-ui, "Microsoft YaHei", sans-serif'
+    });
+  </script>
+</body>
+</html>

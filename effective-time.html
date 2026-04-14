@@ -108,8 +108,12 @@
         }
       }
       if (startDateInput) {
-        startDateInput.addEventListener('change', function() { applyStartMin(); applyEndMin(); });
-        startDateInput.addEventListener('input', function() { applyStartMin(); applyEndMin(); });
+        function onStartDateChanged() {
+          applyStartMin();
+          syncEndDateToDayAfterStart();
+        }
+        startDateInput.addEventListener('change', onStartDateChanged);
+        startDateInput.addEventListener('input', onStartDateChanged);
       }
       if (startTimeInput) {
         startTimeInput.addEventListener('change', applyEndMin);
@@ -140,7 +144,14 @@
           wrap.classList.add('hidden');
         }
       }
-      if (customRadio) customRadio.addEventListener('change', toggleTimePicker);
+      if (customRadio) {
+        customRadio.addEventListener('change', function() {
+          toggleTimePicker();
+          if (customRadio.checked && startDateInput && startDateInput.value) {
+            syncEndDateToDayAfterStart();
+          }
+        });
+      }
       if (nowRadio) nowRadio.addEventListener('change', toggleTimePicker);
       toggleTimePicker();
 
@@ -149,6 +160,25 @@
       }
       function formatTime(d) {
         return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+      }
+      /** 将 YYYY-MM-DD 转为日历下一天，非法则返回空串 */
+      function addOneCalendarDayYmd(ymd) {
+        if (!ymd || typeof ymd !== 'string') return '';
+        var p = ymd.split('-');
+        if (p.length !== 3) return '';
+        var d = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
+        if (isNaN(d.getTime())) return '';
+        d.setDate(d.getDate() + 1);
+        return formatDate(d);
+      }
+      /** 自定义生效：开始日期变更后，结束日期默认设为开始日期的下一天 */
+      function syncEndDateToDayAfterStart() {
+        if (!startDateInput || !endDateInput) return;
+        var sd = startDateInput.value;
+        if (!sd) return;
+        var next = addOneCalendarDayYmd(sd);
+        if (next) endDateInput.value = next;
+        applyEndMin();
       }
       function setStartNow() {
         var d = new Date();
@@ -185,7 +215,16 @@
         }
         applyStartMin();
       }
-      if (endDateInput && !endDateInput.value) setEndNow();
+      if (endDateInput && !endDateInput.value) {
+        if (startDateInput && startDateInput.value) {
+          var nextInit = addOneCalendarDayYmd(startDateInput.value);
+          if (nextInit) endDateInput.value = nextInit;
+          if (startTimeInput && endTimeInput && !endTimeInput.value) {
+            endTimeInput.value = startTimeInput.value;
+          }
+        }
+        if (!endDateInput.value) setEndNow();
+      }
 
       applyStartMin();
       applyEndMin();
@@ -399,6 +438,8 @@
               if (status === 'success') {
                 item.successTime = formatSuccessTime(new Date());
                 item.shelfStatus = 'on_shelf';
+              } else if (status === 'failed') {
+                item.failedTime = formatSuccessTime(new Date());
               }
               return item;
             });

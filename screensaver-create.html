@@ -7,6 +7,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="assets/common.css" />
   <script src="assets/toast.js"></script>
+  <script src="assets/kiosk-theme-media-idb.js"></script>
   <script>
     tailwind.config = { theme: { extend: { colors: { primary: '#1677ff', 'sidebar-bg': '#fafafa', 'sidebar-active': '#e6f4ff' }, borderRadius: { ant: '6px' } } } };
   </script>
@@ -406,6 +407,12 @@
       function processMedia(item, isPortrait) {
         if (!item.file) return Promise.resolve({ dataUrl: item.url, type: item.type || 'image' });
         if (item.type === 'video') {
+          if (window.KioskThemeMediaIdb && KioskThemeMediaIdb.supported()) {
+            var vidRef = KioskThemeMediaIdb.newMediaId();
+            return KioskThemeMediaIdb.put(vidRef, item.file).then(function() {
+              return { type: 'video', mediaRef: vidRef };
+            });
+          }
           return fileToDataUrl(item.file).then(function(dataUrl) {
             return { dataUrl: dataUrl, type: 'video' };
           });

@@ -18,11 +18,11 @@
           <a href="store-select.html" class="p-2 rounded hover:bg-gray-100 text-gray-600" aria-label="返回">←</a>
           <h1 class="text-base font-semibold">选择渠道</h1>
         </div>
-        <a href="distribute-time.html" id="nextBtn" class="px-4 py-2 rounded-ant text-gray-400 cursor-not-allowed pointer-events-none">Next →</a>
-        <a href="distribute-time.html" id="nextBtnActive" class="hidden px-4 py-2 rounded-ant bg-primary text-white hover:bg-blue-600">Next →</a>
+        <a href="effective-time.html" id="nextBtn" class="px-4 py-2 rounded-ant text-gray-400 cursor-not-allowed pointer-events-none">Next →</a>
+        <a href="effective-time.html" id="nextBtnActive" class="hidden px-4 py-2 rounded-ant bg-primary text-white hover:bg-blue-600">Next →</a>
       </div>
       <div class="step-progress w-full">
-        <div class="step-progress-inner" style="width: 50%"></div>
+        <div class="step-progress-inner" style="width: 67%"></div>
       </div>
     </header>
     <main class="flex-1 p-6 max-w-2xl mx-auto w-full">
@@ -121,7 +121,7 @@
         e.preventDefault();
         var selected = getSelectedChannels();
         if (!selected.length) return;
-        window.location.href = 'distribute-time.html';
+        window.location.href = 'effective-time.html';
       });
 
       renderChannels();

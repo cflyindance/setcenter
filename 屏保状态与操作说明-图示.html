@@ -15,26 +15,10 @@
 </head>
 <body>
   <h1>屏保状态与操作说明 — Mermaid 图示</h1>
-  <p class="intro">与 <code>屏保状态与操作说明.md</code> 中 §7.7 一致。若下图空白，请检查网络能否访问 jsDelivr CDN；内网请改为本地引入 mermaid.min.js。</p>
+  <p class="intro">与 <code>屏保状态与操作说明.md</code> 中 §7.7 一致（已不含列表主题级「下发状态」图）。若下图空白，请检查网络能否访问 jsDelivr CDN；内网请改为本地引入 mermaid.min.js。</p>
 
   <section>
-    <h2>7.7.1 下发状态（典型）</h2>
-    <div class="mermaid">
-stateDiagram-v2
-  direction LR
-  [*] --> 待下发: 当前时间早于下发时间
-  待下发 --> 下发中: 到点且存在pending门店
-  下发中 --> 已下发: 全成功且无渠道级失败
-  下发中 --> 部分门店下发失败: 失败与成功或pending并存
-  下发中 --> 下发失败: 仅失败
-  下发中 --> 部分渠道下发失败: 门店全成功但有渠道失败
-  部分门店下发失败 --> 下发中: 重试后仍有pending等
-  部分门店下发失败 --> 已下发: 重试后全部成功且无渠道失败
-    </div>
-  </section>
-
-  <section>
-    <h2>7.7.2 生效状态（自定义时段）</h2>
+    <h2>7.7.1 生效状态（自定义时段）</h2>
     <div class="mermaid">
 stateDiagram-v2
   [*] --> 待生效: now小于开始
@@ -44,16 +28,15 @@ stateDiagram-v2
   </section>
 
   <section>
-    <h2>7.7.3 立即生效下的生效状态</h2>
+    <h2>7.7.2 历史「立即生效」下的生效状态（旧数据）</h2>
     <div class="mermaid">
 stateDiagram-v2
-  [*] --> 待生效: 下发仍为待下发等
-  待生效 --> 已生效: 下发脱离待下发
+  [*] --> 已生效: effectTime为立即生效
     </div>
   </section>
 
   <section>
-    <h2>7.7.4 屏保展示在架 / 展示下架</h2>
+    <h2>7.7.3 屏保展示在架 / 展示下架</h2>
     <div class="mermaid">
 stateDiagram-v2
   direction TB
@@ -65,15 +48,15 @@ stateDiagram-v2
   </section>
 
   <section>
-    <h2>7.7.5 成功门店在架 / 下架</h2>
+    <h2>7.7.4 成功渠道已上架 / 已下架（按渠道）</h2>
     <div class="mermaid">
 stateDiagram-v2
   direction LR
-  在架: 成功且无off_shelf
-  已下架: 成功且shelfStatus off_shelf
-  在架 --> 已下架: 门店下架
-  已下架 --> 在架: 门店重新上架
-  已下架 --> 已移除: 从记录删除
+  ch_on: 渠道已上架
+  ch_off: 渠道已下架
+  ch_on --> ch_off: 渠道下架
+  ch_off --> ch_on: 渠道重新上架
+  note right of ch_off: 全部门店成功渠道均已下架后可删整条门店记录
     </div>
   </section>
 

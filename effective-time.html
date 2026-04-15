@@ -16,7 +16,7 @@
     <header class="flex-shrink-0 border-b border-gray-200 bg-white">
       <div class="flex items-center justify-between px-4 py-3">
         <div class="flex items-center gap-2">
-          <a href="distribute-time.html" class="p-2 rounded hover:bg-gray-100 text-gray-600" aria-label="返回">←</a>
+          <a href="channel-select.html" class="p-2 rounded hover:bg-gray-100 text-gray-600" aria-label="返回">←</a>
           <h1 class="text-base font-semibold">选择展示生效时间</h1>
         </div>
         <a href="kiosk-theme-list.html" id="submitBtn" class="px-4 py-2 rounded-ant bg-primary text-white hover:bg-blue-600">完成</a>
@@ -32,19 +32,7 @@
         <p>During peak times, the update wait time may be longer. Please try to perform updates (scheduled) during off-peak times.</p>
       </div>
       <div class="space-y-4">
-        <div>
-          <span class="block text-sm font-medium text-gray-700 mb-2">生效时间</span>
-          <div class="flex gap-4">
-            <label class="inline-flex items-center gap-2 cursor-pointer">
-              <input type="radio" name="effectiveType" value="custom" checked class="text-primary" />
-              <span>自定义</span>
-            </label>
-            <label class="inline-flex items-center gap-2 cursor-pointer">
-              <input type="radio" name="effectiveType" value="now" class="text-primary" />
-              <span>立即</span>
-            </label>
-          </div>
-        </div>
+        <p class="text-sm text-gray-600">请设置展示生效的 <strong>开始时间</strong> 与 <strong>结束时间</strong>（日期 + 时分）。</p>
         <div id="timePickerWrap" class="space-y-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">开始时间 <span class="text-red-500">*</span></label>
@@ -61,7 +49,7 @@
             </div>
           </div>
           <p class="text-gray-500 text-xs">点击日期框选择年/月/日，点击时间框选择时/分</p>
-          <p class="text-amber-800 bg-amber-50 border border-amber-100 rounded-ant px-3 py-2 text-xs leading-relaxed">若其他活动主题已占用<strong>相同下发渠道</strong>，则各主题的展示<strong>生效时间段不可重叠</strong>（与「立即生效」也会判为可能重叠）。</p>
+          <p class="text-amber-800 bg-amber-50 border border-amber-100 rounded-ant px-3 py-2 text-xs leading-relaxed">若其他活动主题已占用<strong>相同展示渠道</strong>，则各主题的展示<strong>生效时间段不可重叠</strong>。</p>
         </div>
       </div>
     </main>
@@ -81,35 +69,13 @@
   </div>
   <script>
     (function() {
-      var wrap = document.getElementById('timePickerWrap');
       var startDateInput = document.getElementById('startDateInput');
       var startTimeInput = document.getElementById('startTimeInput');
       var endDateInput = document.getElementById('endDateInput');
       var endTimeInput = document.getElementById('endTimeInput');
-      var customRadio = document.querySelector('input[name="effectiveType"][value="custom"]');
-      var nowRadio = document.querySelector('input[name="effectiveType"][value="now"]');
 
-      var distributeDate = '';
-      var distributeTime = '';
-      try {
-        distributeDate = localStorage.getItem('distribute_date') || '';
-        distributeTime = localStorage.getItem('distribute_time') || '';
-      } catch (e) {}
-
-      function applyStartMin() {
-        if (!startDateInput || !startTimeInput) return;
-        if (distributeDate) {
-          startDateInput.setAttribute('min', distributeDate);
-          if (startDateInput.value === distributeDate && distributeTime) {
-            startTimeInput.setAttribute('min', distributeTime);
-          } else {
-            startTimeInput.removeAttribute('min');
-          }
-        }
-      }
       if (startDateInput) {
         function onStartDateChanged() {
-          applyStartMin();
           syncEndDateToDayAfterStart();
         }
         startDateInput.addEventListener('change', onStartDateChanged);
@@ -136,24 +102,6 @@
         endDateInput.addEventListener('change', applyEndMin);
         endDateInput.addEventListener('input', applyEndMin);
       }
-
-      function toggleTimePicker() {
-        if (customRadio && customRadio.checked) {
-          wrap.classList.remove('hidden');
-        } else {
-          wrap.classList.add('hidden');
-        }
-      }
-      if (customRadio) {
-        customRadio.addEventListener('change', function() {
-          toggleTimePicker();
-          if (customRadio.checked && startDateInput && startDateInput.value) {
-            syncEndDateToDayAfterStart();
-          }
-        });
-      }
-      if (nowRadio) nowRadio.addEventListener('change', toggleTimePicker);
-      toggleTimePicker();
 
       function formatDate(d) {
         return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -182,15 +130,8 @@
       }
       function setStartNow() {
         var d = new Date();
-        var dStr = formatDate(d);
-        var tStr = formatTime(d);
-        if (distributeDate && (dStr < distributeDate || (dStr === distributeDate && distributeTime && tStr < distributeTime))) {
-          dStr = distributeDate;
-          tStr = distributeTime || tStr;
-        }
-        if (startDateInput) startDateInput.value = dStr;
-        if (startTimeInput) startTimeInput.value = tStr;
-        applyStartMin();
+        if (startDateInput) startDateInput.value = formatDate(d);
+        if (startTimeInput) startTimeInput.value = formatTime(d);
       }
       function setEndNow() {
         var startD = startDateInput ? startDateInput.value : '';
@@ -207,13 +148,7 @@
         applyEndMin();
       }
       if (startDateInput && !startDateInput.value) {
-        if (distributeDate && distributeTime) {
-          startDateInput.value = distributeDate;
-          startTimeInput.value = distributeTime;
-        } else {
-          setStartNow();
-        }
-        applyStartMin();
+        setStartNow();
       }
       if (endDateInput && !endDateInput.value) {
         if (startDateInput && startDateInput.value) {
@@ -226,7 +161,6 @@
         if (!endDateInput.value) setEndNow();
       }
 
-      applyStartMin();
       applyEndMin();
 
       var submitConfirmModal = document.getElementById('submitConfirmModal');
@@ -303,36 +237,18 @@
         } catch (e2) {}
         var proposedCh = Array.isArray(selectedChannels) && selectedChannels.length ? selectedChannels.slice() : ['Kiosk'];
 
-        var nowRadioEl = document.querySelector('input[name="effectiveType"][value="now"]');
-        var proposedRange;
-        if (nowRadioEl && nowRadioEl.checked) {
-          var distDate = '';
-          var distTime = '';
-          try {
-            distDate = localStorage.getItem('distribute_date') || '';
-            distTime = localStorage.getItem('distribute_time') || '';
-          } catch (e3) {}
-          if (distDate && distTime) {
-            var distMs = new Date((distDate + 'T' + distTime + (distTime.length <= 5 ? ':00' : ''))).getTime();
-            if (!isNaN(distMs)) proposedRange = { start: distMs, end: Infinity };
-            else proposedRange = { start: Date.now(), end: Infinity };
-          } else {
-            proposedRange = { start: Date.now(), end: Infinity };
-          }
-        } else {
-          if (!startDateInput || !startTimeInput || !endDateInput || !endTimeInput) return null;
-          var sd = startDateInput.value;
-          var st = startTimeInput.value;
-          var ed = endDateInput.value;
-          var et = endTimeInput.value;
-          if (!sd || !st || !ed || !et) return null;
-          var stNorm = st.length === 5 ? st + ':00' : st;
-          var etNorm = et.length === 5 ? et + ':00' : et;
-          var startMs = new Date(sd + 'T' + stNorm).getTime();
-          var endMs = new Date(ed + 'T' + etNorm).getTime();
-          if (isNaN(startMs) || isNaN(endMs)) return null;
-          proposedRange = { start: startMs, end: endMs };
-        }
+        if (!startDateInput || !startTimeInput || !endDateInput || !endTimeInput) return null;
+        var sd = startDateInput.value;
+        var st = startTimeInput.value;
+        var ed = endDateInput.value;
+        var et = endTimeInput.value;
+        if (!sd || !st || !ed || !et) return null;
+        var stNorm = st.length === 5 ? st + ':00' : st;
+        var etNorm = et.length === 5 ? et + ':00' : et;
+        var startMs = new Date(sd + 'T' + stNorm).getTime();
+        var endMs = new Date(ed + 'T' + etNorm).getTime();
+        if (isNaN(startMs) || isNaN(endMs)) return null;
+        var proposedRange = { start: startMs, end: endMs };
 
         for (var i = 0; i < themes.length; i++) {
           var t = themes[i];
@@ -343,7 +259,7 @@
           if (rangesOverlap(proposedRange, otherRange)) {
             var name = t.name ? String(t.name) : '未命名主题';
             var chLabel = proposedCh.join('、');
-            return '与主题「' + name + '」在相同渠道（' + chLabel + '）上的展示生效时间存在重叠，请调整生效时间或渠道后再下发。';
+            return '与主题「' + name + '」在相同展示渠道（' + chLabel + '）上的展示生效时间存在重叠，请调整生效时间或展示渠道后再下发。';
           }
         }
         return null;
@@ -362,13 +278,8 @@
           var themes = raw ? JSON.parse(raw) : [];
           var theme = themes.filter(function(t) { return t.id === themeId; })[0];
           if (theme) {
-            var distDate = localStorage.getItem('distribute_date') || '';
-            var distTime = localStorage.getItem('distribute_time') || '';
-            theme.distributeTime = (distDate && distTime) ? distDate.replace(/-/g, '/') + ' ' + distTime : '--';
-            var nowRadioEl = document.querySelector('input[name="effectiveType"][value="now"]');
-            if (nowRadioEl && nowRadioEl.checked) {
-              theme.effectTime = '立即生效';
-            } else if (startDateInput && startTimeInput && endDateInput && endTimeInput) {
+            theme.distributeTime = '--';
+            if (startDateInput && startTimeInput && endDateInput && endTimeInput) {
               var sD = startDateInput.value.replace(/-/g, '/');
               var sT = startTimeInput.value;
               var eD = endDateInput.value.replace(/-/g, '/');
@@ -437,7 +348,6 @@
               var item = { name: store.name, mid: store.mid, status: status, channelStatuses: channelStatuses };
               if (status === 'success') {
                 item.successTime = formatSuccessTime(new Date());
-                item.shelfStatus = 'on_shelf';
               } else if (status === 'failed') {
                 item.failedTime = formatSuccessTime(new Date());
               }
@@ -446,6 +356,8 @@
             localStorage.setItem('kiosk_themes', JSON.stringify(themes));
             try { localStorage.removeItem('selected_stores_for_distribute'); } catch (e) {}
             try { localStorage.removeItem('selected_channels_for_distribute'); } catch (e) {}
+            try { localStorage.removeItem('distribute_date'); } catch (e) {}
+            try { localStorage.removeItem('distribute_time'); } catch (e) {}
           }
           try { localStorage.removeItem('current_theme_id_for_distribute'); } catch (e) {}
         }
@@ -454,16 +366,14 @@
 
       document.getElementById('submitBtn').addEventListener('click', function(e) {
         e.preventDefault();
-        if (customRadio && customRadio.checked && startDateInput && startTimeInput && endDateInput && endTimeInput) {
+        if (startDateInput && startTimeInput && endDateInput && endTimeInput) {
           var startD = startDateInput.value;
           var startT = startTimeInput.value;
           var endD = endDateInput.value;
           var endT = endTimeInput.value;
-          if (distributeDate && distributeTime) {
-            if (startD < distributeDate || (startD === distributeDate && startT < distributeTime)) {
-              Toast.warning('生效开始时间不得早于下发时间，请重新选择。');
-              return;
-            }
+          if (!startD || !startT || !endD || !endT) {
+            Toast.warning('请完整填写开始时间与结束时间。');
+            return;
           }
           if (endD < startD || (endD === startD && endT < startT)) {
             Toast.warning('结束时间不得早于开始时间，请重新选择。');

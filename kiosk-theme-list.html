@@ -6,6 +6,7 @@
   <title>屏保 - 营销中心</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="assets/common.css" />
+  <script src="assets/kiosk-theme-media-idb.js"></script>
   <script>
     tailwind.config = { theme: { extend: { colors: { primary: '#1677ff', 'sidebar-bg': '#fafafa', 'sidebar-active': '#e6f4ff' }, borderRadius: { ant: '6px' } } } };
   </script>
@@ -63,18 +64,6 @@
             <input type="text" id="filterName" placeholder="主题名称" class="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-ant text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" aria-label="按主题名称筛选" />
           </div>
           <div class="flex flex-wrap items-center gap-2">
-            <span class="text-sm text-gray-600 whitespace-nowrap">下发状态</span>
-            <select id="filterDistributeStatus" class="px-3 py-2 border border-gray-200 rounded-ant text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" aria-label="按下发状态筛选">
-            <option value="" selected>全部</option>
-            <option value="待下发">待下发</option>
-            <option value="下发中">下发中</option>
-            <option value="已下发">已下发</option>
-            <option value="部分门店下发失败">部分门店下发失败</option>
-            <option value="部分渠道下发失败">部分渠道下发失败</option>
-            <option value="下发失败">下发失败</option>
-          </select>
-          </div>
-          <div class="flex flex-wrap items-center gap-2">
             <span class="text-sm text-gray-600 whitespace-nowrap">生效状态</span>
             <select id="filterEffectStatus" class="px-3 py-2 border border-gray-200 rounded-ant text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" aria-label="按生效状态筛选">
             <option value="" selected>全部</option>
@@ -114,16 +103,21 @@
   <!-- 图片预览模态框：遮罩单独一层，避免误点空白区当作「点蒙层关闭」；导航 z-index 高于图片 -->
   <div id="imagePreviewModal" class="fixed inset-0 z-50 hidden">
     <button type="button" id="previewBackdrop" class="absolute inset-0 z-0 block h-full w-full cursor-default border-0 bg-black/80 p-0" aria-label="关闭预览"></button>
-    <div class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-      <button type="button" id="previewClose" class="pointer-events-auto absolute top-4 right-4 z-30 w-10 h-10 rounded-full bg-white/20 hover:bg-white/40 text-white text-2xl flex items-center justify-center transition-colors" aria-label="关闭">×</button>
-      <div id="previewOrientationSwitch" class="pointer-events-auto absolute top-14 left-1/2 z-30 flex -translate-x-1/2 items-center gap-0.5 rounded-full border border-white/15 bg-black/55 p-0.5 shadow-lg backdrop-blur-sm" role="tablist" aria-label="屏保版式切换">
+    <div class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center isolate">
+      <!-- 大图 / 视频预览：同层切换，避免与左右导航重叠时抢占点击 -->
+      <img id="previewImage" src="" alt="预览大图" draggable="false" class="pointer-events-auto relative z-10 mt-10 max-h-[calc(85vh-6.5rem)] max-w-[90vw] select-none rounded-lg object-contain shadow-2xl" />
+      <video id="previewVideo" class="pointer-events-auto relative z-10 mt-10 hidden max-h-[calc(85vh-6.5rem)] max-w-[90vw] rounded-lg object-contain shadow-2xl" controls playsinline preload="metadata" aria-label="预览视频"></video>
+      <button type="button" id="previewClose" class="pointer-events-auto absolute top-4 right-4 z-50 w-10 h-10 rounded-full bg-white/20 hover:bg-white/40 text-white text-2xl flex items-center justify-center transition-colors" aria-label="关闭">×</button>
+      <div id="previewOrientationSwitch" class="pointer-events-auto absolute top-14 left-1/2 z-50 flex -translate-x-1/2 items-center gap-0.5 rounded-full border border-white/15 bg-black/55 p-0.5 shadow-lg backdrop-blur-sm" role="tablist" aria-label="屏保版式切换">
         <button type="button" id="previewTabPortrait" role="tab" class="preview-orient-tab px-4 py-1.5 rounded-full text-sm font-medium transition-colors text-white/85 hover:bg-white/10 hover:text-white" aria-selected="true">竖版</button>
         <button type="button" id="previewTabLandscape" role="tab" class="preview-orient-tab px-4 py-1.5 rounded-full text-sm font-medium transition-colors text-white/85 hover:bg-white/10 hover:text-white" aria-selected="false">横版</button>
       </div>
-      <button type="button" id="previewPrev" class="pointer-events-auto absolute left-4 top-1/2 z-30 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-2xl text-white transition-colors hover:bg-white/40" aria-label="上一张">&lt;</button>
-      <button type="button" id="previewNext" class="pointer-events-auto absolute right-4 top-1/2 z-30 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/20 text-2xl text-white transition-colors hover:bg-white/40" aria-label="下一张">&gt;</button>
-      <img id="previewImage" src="" alt="预览大图" class="pointer-events-auto relative z-20 mt-10 max-h-[calc(85vh-6.5rem)] max-w-[90vw] rounded-lg object-contain shadow-2xl" />
-      <div id="previewCounter" class="pointer-events-auto absolute bottom-6 left-1/2 z-30 max-w-[90vw] -translate-x-1/2 rounded-full bg-white/20 px-4 py-2 text-center text-sm leading-snug text-white"></div>
+      <div id="previewCounter" class="pointer-events-auto absolute bottom-6 left-1/2 z-50 max-w-[90vw] -translate-x-1/2 rounded-full bg-white/20 px-4 py-2 text-center text-sm leading-snug text-white"></div>
+      <!-- 独立最高层仅承载左右翻页，避免与大图/关闭钮同 z 时右侧命中被挡 -->
+      <div class="pointer-events-none absolute inset-0 z-[100]" aria-hidden="true">
+        <button type="button" id="previewPrev" class="pointer-events-auto absolute left-4 top-1/2 flex h-12 w-12 -translate-y-1/2 touch-manipulation items-center justify-center rounded-full bg-white/20 text-2xl text-white transition-colors hover:bg-white/40" aria-label="上一张">&lt;</button>
+        <button type="button" id="previewNext" class="pointer-events-auto absolute right-4 top-1/2 flex h-12 w-12 -translate-y-1/2 touch-manipulation items-center justify-center rounded-full bg-white/20 text-2xl text-white transition-colors hover:bg-white/40" aria-label="下一张">&gt;</button>
+      </div>
     </div>
   </div>
   <!-- 门店详情模态框 -->
@@ -144,8 +138,8 @@
       </div>
       <div class="px-4 py-3 border-b border-gray-100 space-y-2 flex-shrink-0 bg-gray-50/50">
         <div class="flex flex-wrap gap-2 items-center">
-          <label for="storesFilterStatus" class="text-xs text-gray-500 whitespace-nowrap">下发状态</label>
-          <select id="storesFilterStatus" class="min-w-[112px] px-2 py-1.5 border border-gray-200 rounded-ant text-sm bg-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" aria-label="按下发状态筛选">
+          <label for="storesFilterStatus" class="text-xs text-gray-500 whitespace-nowrap">门店状态</label>
+          <select id="storesFilterStatus" class="min-w-[112px] px-2 py-1.5 border border-gray-200 rounded-ant text-sm bg-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" aria-label="按门店同步状态筛选">
             <option value="">全部</option>
             <option value="success">成功</option>
             <option value="pending">下发中</option>
@@ -156,7 +150,7 @@
           <button type="button" id="storesFilterReset" class="px-2.5 py-1.5 text-xs rounded-ant border border-gray-200 bg-white hover:bg-gray-50 text-gray-600">重置</button>
         </div>
         <p id="storesFilteredHint" class="text-xs text-gray-400 hidden" aria-live="polite"></p>
-        <p class="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-ant px-2 py-1.5">下发成功的门店支持<strong>单个</strong>下架 / 重新上架，或在下架后从记录中<strong>删除</strong>；不支持在此修改门店名称或 MID。</p>
+        <p class="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-ant px-2 py-1.5">下发<strong>成功</strong>的渠道可按渠道<strong>单独</strong>下架 / 重新上架；当该门店下<strong>所有已成功渠道</strong>均已下架后，可从记录中<strong>删除</strong>该门店；不支持在此修改门店名称或 MID。</p>
       </div>
       <div id="storesListContainer" class="flex-1 overflow-auto p-4 space-y-2"></div>
     </div>
@@ -171,6 +165,19 @@
       <div class="px-4 py-3 border-t border-gray-100 flex justify-end gap-2">
         <button type="button" id="storeRemoveCancel" class="px-4 py-2 rounded-ant border border-gray-200 text-sm hover:bg-gray-50">取消</button>
         <button type="button" id="storeRemoveOk" class="px-4 py-2 rounded-ant bg-red-600 text-white text-sm hover:bg-red-700">移除</button>
+      </div>
+    </div>
+  </div>
+  <!-- 重试失败下发二次确认（不使用浏览器 confirm） -->
+  <div id="retryFailedConfirmModal" class="fixed inset-0 z-[65] hidden items-center justify-center bg-black/50 p-4" aria-hidden="true">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-sm" role="dialog" aria-modal="true" aria-labelledby="retryFailedConfirmTitle">
+      <div class="px-4 py-3 border-b border-gray-200">
+        <h3 id="retryFailedConfirmTitle" class="font-semibold text-gray-800">重试失败下发</h3>
+      </div>
+      <p class="px-4 py-4 text-sm text-gray-600 leading-relaxed">确认对当前主题下失败的门店或渠道重新模拟下发？确认后将随机更新失败项状态并保存。</p>
+      <div class="px-4 py-3 border-t border-gray-100 flex justify-end gap-2">
+        <button type="button" id="retryFailedConfirmCancel" class="px-4 py-2 rounded-ant border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1">取消</button>
+        <button type="button" id="retryFailedConfirmOk" class="px-4 py-2 rounded-ant bg-primary text-white text-sm hover:bg-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1">确定</button>
       </div>
     </div>
   </div>
@@ -193,6 +200,89 @@
       var currentPage = 1;
       var pageSize = 20;
       var pendingDeleteThemeId = null;
+      var listHydrateBlobUrls = [];
+      var previewOpenBlobUrls = [];
+
+      function revokeListHydrateBlobUrls() {
+        listHydrateBlobUrls.forEach(function(u) {
+          try { URL.revokeObjectURL(u); } catch (e) { /* ignore */ }
+        });
+        listHydrateBlobUrls = [];
+      }
+
+      function hydrateThemeListMedia(list) {
+        revokeListHydrateBlobUrls();
+        var idb = window.KioskThemeMediaIdb;
+        if (!idb || !idb.supported()) return Promise.resolve();
+        var tasks = [];
+        list.forEach(function(theme) {
+          [theme.portraitImages, theme.landscapeImages].forEach(function(arr) {
+            if (!arr) return;
+            arr.forEach(function(m) {
+              if (typeof m === 'object' && m.type === 'video' && m.mediaRef) {
+                delete m._displaySrc;
+                tasks.push(
+                  idb.get(m.mediaRef).then(function(blob) {
+                    if (blob) {
+                      var u = URL.createObjectURL(blob);
+                      listHydrateBlobUrls.push(u);
+                      m._displaySrc = u;
+                    }
+                  })
+                );
+              }
+            });
+          });
+        });
+        return Promise.all(tasks);
+      }
+
+      function revokePreviewOpenBlobUrls() {
+        previewOpenBlobUrls.forEach(function(u) {
+          try { URL.revokeObjectURL(u); } catch (e) { /* ignore */ }
+        });
+        previewOpenBlobUrls = [];
+      }
+
+      function hydrateThemeForPreview(theme) {
+        revokePreviewOpenBlobUrls();
+        var idb = window.KioskThemeMediaIdb;
+        if (!idb || !idb.supported()) return Promise.resolve();
+        var tasks = [];
+        function scan(arr) {
+          if (!arr) return;
+          arr.forEach(function(m) {
+            if (typeof m === 'object' && m.type === 'video' && m.mediaRef) {
+              delete m._displaySrc;
+              tasks.push(
+                idb.get(m.mediaRef).then(function(blob) {
+                  if (blob) {
+                    var u = URL.createObjectURL(blob);
+                    previewOpenBlobUrls.push(u);
+                    m._displaySrc = u;
+                  }
+                })
+              );
+            }
+          });
+        }
+        scan(theme.portraitImages);
+        scan(theme.landscapeImages);
+        return Promise.all(tasks);
+      }
+
+      function collectVideoMediaRefs(theme) {
+        var refs = [];
+        function scan(arr) {
+          if (!arr) return;
+          arr.forEach(function(m) {
+            if (m && typeof m === 'object' && m.type === 'video' && m.mediaRef) refs.push(m.mediaRef);
+          });
+        }
+        scan(theme.portraitImages);
+        scan(theme.landscapeImages);
+        return refs;
+      }
 
       var deleteConfirmModal = document.getElementById('deleteConfirmModal');
       var deleteConfirmThemeName = document.getElementById('deleteConfirmThemeName');
@@ -218,10 +308,20 @@
       function executeDeleteTheme() {
         if (!pendingDeleteThemeId) return;
         var id = pendingDeleteThemeId;
-        var list = getThemes().filter(function(t) { return t.id !== id; });
-        saveThemes(list);
-        closeDeleteConfirmModal();
-        render();
+        var all = getThemes();
+        var doomed = all.find(function(t) { return t.id === id; });
+        var refs = doomed && window.KioskThemeMediaIdb && KioskThemeMediaIdb.supported() ? collectVideoMediaRefs(doomed) : [];
+        function applyDelete() {
+          var list = all.filter(function(t) { return t.id !== id; });
+          saveThemes(list);
+          closeDeleteConfirmModal();
+          render();
+        }
+        if (refs.length) {
+          Promise.all(refs.map(function(r) { return KioskThemeMediaIdb.del(r).catch(function() {}); })).then(applyDelete);
+        } else {
+          applyDelete();
+        }
       }
 
       function getThemes() {
@@ -250,6 +350,20 @@
         return d.innerHTML;
       }
 
+      /** 列表/预览中判断是否为视频素材（与新建/编辑页写入的 { type:'video', dataUrl } 一致） */
+      function isPreviewVideoMedia(item) {
+        if (!item) return false;
+        if (typeof item === 'object' && item.type === 'video') return true;
+        var u = typeof item === 'string' ? item : (item.dataUrl || '');
+        return typeof u === 'string' && u.indexOf('data:video') === 0;
+      }
+
+      function previewMediaSrc(item) {
+        if (!item) return '';
+        if (typeof item === 'object' && item._displaySrc) return item._displaySrc;
+        return typeof item === 'string' ? item : (item.dataUrl || '');
+      }
+
       function parseDateTime(str) {
         if (!str || str === '--') return null;
         var normalized = str.replace(/\//g, '-');
@@ -257,7 +371,7 @@
         return isNaN(d.getTime()) ? null : d;
       }
 
-      /** 门店维度全部成功，但存在任一门店的任一下发渠道为失败 */
+      /** 门店维度全部成功，但存在任一门店的任一展示渠道为失败 */
       function hasChannelLevelFailure(distributedStores) {
         if (!distributedStores || !distributedStores.length) return false;
         for (var i = 0; i < distributedStores.length; i++) {
@@ -270,41 +384,10 @@
         return false;
       }
 
-      function computeDistributeStatus(distributeTime, distributedStores) {
-        if (!distributeTime || distributeTime === '--') return null;
-        var dt = parseDateTime(distributeTime);
-        if (!dt) return null;
-        var now = new Date();
-        if (now < dt) return { text: '待下发', color: 'bg-yellow-100 text-yellow-700' };
-        if (distributedStores && distributedStores.length) {
-          var successCount = distributedStores.filter(function(s) { return s.status === 'success'; }).length;
-          var failedCount = distributedStores.filter(function(s) { return s.status === 'failed'; }).length;
-          var pendingCount = distributedStores.filter(function(s) { return s.status === 'pending'; }).length;
-          if (failedCount > 0 && successCount > 0) {
-            return { text: '部分门店下发失败', color: 'bg-orange-100 text-orange-700' };
-          }
-          if (failedCount > 0 && pendingCount > 0) {
-            return { text: '部分门店下发失败', color: 'bg-orange-100 text-orange-700' };
-          }
-          if (failedCount > 0 && successCount === 0 && pendingCount === 0) {
-            return { text: '下发失败', color: 'bg-red-100 text-red-700' };
-          }
-          if (pendingCount > 0) {
-            return { text: '下发中', color: 'bg-blue-100 text-blue-700' };
-          }
-          if (successCount === distributedStores.length && successCount > 0 && hasChannelLevelFailure(distributedStores)) {
-            return { text: '部分渠道下发失败', color: 'bg-amber-100 text-amber-800' };
-          }
-        }
-        return { text: '已下发', color: 'bg-green-100 text-green-700' };
-      }
-
-      function computeEffectStatus(effectTime, distributeTime, distributedStores) {
+      function computeEffectStatus(effectTime) {
         if (!effectTime || effectTime === '--') return null;
         var now = new Date();
         if (effectTime === '立即生效') {
-          var distStatus = computeDistributeStatus(distributeTime, distributedStores);
-          if (!distStatus || distStatus.text === '待下发') return { text: '待生效', color: 'bg-yellow-100 text-yellow-700' };
           return { text: '已生效', color: 'bg-green-100 text-green-700' };
         }
         var parts = effectTime.split(' - ');
@@ -320,7 +403,7 @@
       /** 生效状态为「已生效」且屏保未做展示下架时，列表仅允许「下架」操作 */
       function isThemeEffectActiveOnShelf(theme) {
         if (!theme) return false;
-        var es = computeEffectStatus(theme.effectTime, theme.distributeTime, theme.distributedStores);
+        var es = computeEffectStatus(theme.effectTime);
         return !!(es && es.text === '已生效' && theme.effectShelfStatus !== 'off_shelf');
       }
 
@@ -343,40 +426,22 @@
         listState.classList.remove('hidden');
         if (!container) return;
 
+        /** 列表排序：仅按生效时间窗（与主题级「下发状态」无关） */
         function getStatusPriority(theme) {
-          var distTime = theme.distributeTime;
-          var stores = theme.distributedStores;
           var effTime = theme.effectTime;
-          if (distTime && distTime !== '--') {
-            var dt = new Date(distTime.replace(/\//g, '-'));
+          if (!effTime || effTime === '--') return 6;
+          if (effTime === '立即生效') return 2;
+          var parts = effTime.split(' - ');
+          if (parts.length === 2) {
+            var startDt = new Date(parts[0].trim().replace(/\//g, '-'));
+            var endDt = new Date(parts[1].trim().replace(/\//g, '-'));
             var now = new Date();
-            if (now < dt) return 3;
-            if (stores && stores.length) {
-              var successCount = stores.filter(function(s) { return s.status === 'success'; }).length;
-              var failedCount = stores.filter(function(s) { return s.status === 'failed'; }).length;
-              var pendingCount = stores.filter(function(s) { return s.status === 'pending'; }).length;
-              if (failedCount > 0 && successCount > 0) return 1;
-              if (failedCount > 0 && pendingCount > 0) return 1;
-              if (failedCount > 0 && successCount === 0 && pendingCount === 0) return 1;
-              if (pendingCount > 0) return 2;
-              if (successCount === stores.length && successCount > 0 && hasChannelLevelFailure(stores)) return 1;
-            }
+            if (isNaN(startDt.getTime()) || isNaN(endDt.getTime())) return 6;
+            if (now < startDt) return 1;
+            if (now > endDt) return 5;
+            return 2;
           }
-          if (effTime && effTime !== '--') {
-            if (effTime === '立即生效') {
-              return distTime && distTime !== '--' ? 5 : 4;
-            }
-            var parts = effTime.split(' - ');
-            if (parts.length === 2) {
-              var startDt = new Date(parts[0].trim().replace(/\//g, '-'));
-              var endDt = new Date(parts[1].trim().replace(/\//g, '-'));
-              var now = new Date();
-              if (now < startDt) return 4;
-              if (now > endDt) return 6;
-              return 5;
-            }
-          }
-          return 7;
+          return 6;
         }
 
         list.sort(function(a, b) {
@@ -389,18 +454,14 @@
         });
 
         var filterName = (document.getElementById('filterName').value || '').trim().toLowerCase();
-        var filterDistStatus = document.getElementById('filterDistributeStatus').value;
         var filterEffStatus = document.getElementById('filterEffectStatus').value;
         var filterStartDate = document.getElementById('filterStartDate').value;
         var filterEndDate = document.getElementById('filterEndDate').value;
 
         list = list.filter(function(t) {
           if (filterName && (!t.name || t.name.toLowerCase().indexOf(filterName) < 0)) return false;
-          
-          var distStatus = computeDistributeStatus(t.distributeTime, t.distributedStores);
-          if (filterDistStatus && (!distStatus || distStatus.text !== filterDistStatus)) return false;
-          
-          var effStatus = computeEffectStatus(t.effectTime, t.distributeTime, t.distributedStores);
+
+          var effStatus = computeEffectStatus(t.effectTime);
           if (filterEffStatus && (!effStatus || effStatus.text !== filterEffStatus)) return false;
           
           if (filterStartDate || filterEndDate) {
@@ -420,6 +481,7 @@
           return true;
         });
 
+        function finalizeListRender() {
         var totalCount = list.length;
         var totalPages = Math.ceil(totalCount / pageSize) || 1;
         if (currentPage > totalPages) currentPage = totalPages;
@@ -431,23 +493,27 @@
         function renderImageThumbs(images, isPortrait, themeId) {
           if (!images || !images.length) return '';
           var boxClass = isPortrait ? 'w-10 h-14' : 'w-14 h-10';
+          var commonAttrs = 'data-theme-id="' + escapeHtml(themeId) + '" data-img-type="' + (isPortrait ? 'portrait' : 'landscape') + '"';
           return images.map(function(img, idx) {
-            var src = img.dataUrl || img;
-            return '<img src="' + src + '" alt="屏保" data-theme-id="' + escapeHtml(themeId) + '" data-img-type="' + (isPortrait ? 'portrait' : 'landscape') + '" data-img-index="' + idx + '" class="preview-thumb cursor-pointer hover:opacity-80 transition-opacity ' + boxClass + ' rounded object-cover border border-gray-100" />';
+            var src = previewMediaSrc(img);
+            var safeSrc = escapeHtml(src);
+            if (isPreviewVideoMedia(img)) {
+              return '<video src="' + safeSrc + '" muted playsinline preload="metadata" draggable="false" disablepictureinpicture ' + commonAttrs + ' data-img-index="' + idx + '" class="preview-thumb cursor-pointer hover:opacity-80 transition-opacity ' + boxClass + ' rounded object-cover border border-gray-100"></video>';
+            }
+            return '<img src="' + safeSrc + '" alt="屏保" ' + commonAttrs + ' data-img-index="' + idx + '" class="preview-thumb cursor-pointer hover:opacity-80 transition-opacity ' + boxClass + ' rounded object-cover border border-gray-100" />';
           }).join('');
         }
 
         var html = pagedList.map(function(t) {
           var effectStr = t.effectTime || '--';
           var distributeStr = t.distributeTime || '--';
+          var distributeBlock = (distributeStr && distributeStr !== '--')
+            ? '<div><span class="text-gray-400">下发时间</span><div class="text-gray-700 mt-0.5">' + escapeHtml(distributeStr) + '</div></div>'
+            : '';
           var channelsStr = (t.distributeChannels && t.distributeChannels.length) ? t.distributeChannels.join('、') : '--';
-          var distStatus = computeDistributeStatus(t.distributeTime, t.distributedStores);
-          var effectStatus = computeEffectStatus(t.effectTime, t.distributeTime, t.distributedStores);
+          var effectStatus = computeEffectStatus(t.effectTime);
           var themeEffectLocked = isThemeEffectActiveOnShelf(t);
           var showEffectRelist = !!(effectStatus && effectStatus.text === '已生效' && t.effectShelfStatus === 'off_shelf');
-          var distStatusBadge = distStatus
-            ? '<span class="inline-block px-2 py-0.5 rounded text-xs font-medium ' + distStatus.color + '">' + distStatus.text + '</span>'
-            : '<span class="text-gray-400">—</span>';
           var effStatusBadge;
           if (effectStatus && effectStatus.text === '已生效' && t.effectShelfStatus === 'off_shelf') {
             effStatusBadge = '<span class="inline-block px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">已生效（展示已下架）</span>';
@@ -509,10 +575,9 @@
               '</div>' +
               '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2 text-sm">' +
                 '<div><span class="text-gray-400">创建时间</span><div class="text-gray-700 mt-0.5">' + escapeHtml(t.createTime || '—') + '</div></div>' +
-                '<div><span class="text-gray-400">下发时间</span><div class="text-gray-700 mt-0.5">' + escapeHtml(distributeStr) + '</div></div>' +
+                distributeBlock +
                 '<div><span class="text-gray-400">生效时间</span><div class="text-gray-700 mt-0.5">' + escapeHtml(effectStr) + '</div></div>' +
-                '<div><span class="text-gray-400">下发渠道</span><div class="text-gray-700 mt-0.5 break-words">' + escapeHtml(channelsStr) + '</div></div>' +
-                '<div><span class="text-gray-400">下发状态</span><div class="text-gray-700 mt-0.5">' + distStatusBadge + '</div></div>' +
+                '<div><span class="text-gray-400">展示渠道</span><div class="text-gray-700 mt-0.5 break-words">' + escapeHtml(channelsStr) + '</div></div>' +
                 '<div><span class="text-gray-400">生效状态</span><div class="text-gray-700 mt-0.5">' + effStatusBadge + '</div></div>' +
               '</div>' +
             '</div>' +
@@ -580,8 +645,8 @@
           });
         });
 
-        container.querySelectorAll('.preview-thumb').forEach(function(img) {
-          img.addEventListener('click', function() {
+        container.querySelectorAll('.preview-thumb').forEach(function(thumb) {
+          thumb.addEventListener('click', function() {
             var themeId = this.getAttribute('data-theme-id');
             var imgType = this.getAttribute('data-img-type');
             var imgIndex = parseInt(this.getAttribute('data-img-index'), 10);
@@ -595,13 +660,22 @@
             openStoresModal(themeId);
           });
         });
+        }
+
+        if (window.KioskThemeMediaIdb && KioskThemeMediaIdb.supported()) {
+          hydrateThemeListMedia(list).then(finalizeListRender).catch(finalizeListRender);
+        } else {
+          finalizeListRender();
+        }
       }
 
       var previewModal = document.getElementById('imagePreviewModal');
       var previewImage = document.getElementById('previewImage');
+      var previewVideo = document.getElementById('previewVideo');
       var previewCounter = document.getElementById('previewCounter');
       var previewTabPortrait = document.getElementById('previewTabPortrait');
       var previewTabLandscape = document.getElementById('previewTabLandscape');
+      var previewOrientationSwitch = document.getElementById('previewOrientationSwitch');
       var previewPrev = document.getElementById('previewPrev');
       var previewNext = document.getElementById('previewNext');
       var previewClose = document.getElementById('previewClose');
@@ -612,8 +686,14 @@
       var previewTabActiveClass = 'bg-white text-gray-900 shadow-sm';
       var previewTabInactiveClass = 'text-white/85 hover:text-white hover:bg-white/10';
 
+      /** 仅当主题同时有竖版与横版素材时展示 Tab，用于快捷切换版式 */
+      function previewShowsOrientationTabs() {
+        return previewPortraitCount > 0 && currentPreviewSlides.length > previewPortraitCount;
+      }
+
       function updatePreviewOrientationTabs() {
         if (!previewTabPortrait || !previewTabLandscape || !currentPreviewSlides.length) return;
+        if (!previewShowsOrientationTabs()) return;
         var hasPortrait = previewPortraitCount > 0;
         var hasLandscape = currentPreviewSlides.length > previewPortraitCount;
         var onPortrait = currentIndex < previewPortraitCount;
@@ -637,7 +717,8 @@
         var lLen = landscape.length;
         portrait.forEach(function(img, i) {
           slides.push({
-            src: img.dataUrl || img,
+            src: previewMediaSrc(img),
+            kind: isPreviewVideoMedia(img) ? 'video' : 'image',
             orientation: '竖版',
             groupIndex: i + 1,
             groupCount: pLen
@@ -645,7 +726,8 @@
         });
         landscape.forEach(function(img, i) {
           slides.push({
-            src: img.dataUrl || img,
+            src: previewMediaSrc(img),
+            kind: isPreviewVideoMedia(img) ? 'video' : 'image',
             orientation: '横版',
             groupIndex: i + 1,
             groupCount: lLen
@@ -658,43 +740,109 @@
         var themes = getThemes();
         var theme = themes.find(function(t) { return t.id === themeId; });
         if (!theme) return;
-        var slides = buildPreviewSlides(theme);
-        if (!slides.length) return;
-        var portraitLen = (theme.portraitImages || []).length;
-        var startGlobal = 0;
-        if (imgType === 'portrait') {
-          startGlobal = Math.min(Math.max(0, imgIndex), Math.max(0, portraitLen - 1));
-        } else {
-          startGlobal = portraitLen + Math.min(Math.max(0, imgIndex), Math.max(0, (theme.landscapeImages || []).length - 1));
+        function openWithTheme(t) {
+          var slides = buildPreviewSlides(t);
+          if (!slides.length) return;
+          var portraitLen = (t.portraitImages || []).length;
+          var startGlobal = 0;
+          if (imgType === 'portrait') {
+            startGlobal = Math.min(Math.max(0, imgIndex), Math.max(0, portraitLen - 1));
+          } else {
+            startGlobal = portraitLen + Math.min(Math.max(0, imgIndex), Math.max(0, (t.landscapeImages || []).length - 1));
+          }
+          currentPreviewSlides = slides;
+          previewPortraitCount = portraitLen;
+          currentIndex = Math.min(startGlobal, slides.length - 1);
+          updatePreview();
+          previewModal.classList.remove('hidden');
         }
-        currentPreviewSlides = slides;
-        previewPortraitCount = portraitLen;
-        currentIndex = Math.min(startGlobal, slides.length - 1);
-        updatePreview();
-        previewModal.classList.remove('hidden');
+        hydrateThemeForPreview(theme).then(function() {
+          openWithTheme(theme);
+        });
+      }
+
+      function stopPreviewVideo() {
+        if (!previewVideo) return;
+        previewVideo.pause();
+        previewVideo.removeAttribute('src');
+        try {
+          previewVideo.load();
+        } catch (err) { /* ignore */ }
+      }
+
+      function syncPreviewMediaMargins(showOrientTabs) {
+        var mt = showOrientTabs ? 'mt-10' : 'mt-4';
+        [previewImage, previewVideo].forEach(function(el) {
+          if (!el) return;
+          el.classList.remove('mt-4', 'mt-10');
+          el.classList.add(mt);
+        });
       }
 
       function updatePreview() {
         if (!currentPreviewSlides.length) return;
         var slide = currentPreviewSlides[currentIndex];
-        previewImage.src = slide.src;
         var total = currentPreviewSlides.length;
+        var unit = slide.kind === 'video' ? '段' : '张';
         var sub = slide.groupCount > 0
-          ? slide.orientation + ' 第 ' + slide.groupIndex + '/' + slide.groupCount + ' 张'
+          ? slide.orientation + ' 第 ' + slide.groupIndex + '/' + slide.groupCount + ' ' + unit
           : slide.orientation;
         previewCounter.textContent = (currentIndex + 1) + ' / ' + total + ' · ' + sub;
         var multi = currentPreviewSlides.length > 1;
         previewPrev.style.display = multi ? 'flex' : 'none';
         previewNext.style.display = multi ? 'flex' : 'none';
+        var showOrientTabs = previewShowsOrientationTabs();
+        if (previewOrientationSwitch) {
+          if (showOrientTabs) {
+            previewOrientationSwitch.classList.remove('hidden');
+            previewOrientationSwitch.setAttribute('aria-hidden', 'false');
+          } else {
+            previewOrientationSwitch.classList.add('hidden');
+            previewOrientationSwitch.setAttribute('aria-hidden', 'true');
+          }
+        }
+        syncPreviewMediaMargins(showOrientTabs);
+        if (slide.kind === 'video' && previewVideo) {
+          previewImage.src = '';
+          previewImage.classList.add('hidden');
+          previewVideo.classList.remove('hidden');
+          previewVideo.src = slide.src || '';
+          previewVideo.load();
+          var playAttempt = previewVideo.play();
+          if (playAttempt && typeof playAttempt.catch === 'function') {
+            playAttempt.catch(function() { /* 浏览器可能要求用户再点播放 */ });
+          }
+        } else {
+          stopPreviewVideo();
+          previewVideo.classList.add('hidden');
+          previewImage.classList.remove('hidden');
+          previewImage.src = slide.src || '';
+        }
         updatePreviewOrientationTabs();
       }
 
       function closePreview() {
         previewModal.classList.add('hidden');
+        stopPreviewVideo();
+        if (previewVideo) previewVideo.classList.add('hidden');
         previewImage.src = '';
+        previewImage.classList.remove('hidden');
+        revokePreviewOpenBlobUrls();
         currentPreviewSlides = [];
         currentIndex = 0;
         previewPortraitCount = 0;
+        if (previewOrientationSwitch) {
+          previewOrientationSwitch.classList.remove('hidden');
+          previewOrientationSwitch.removeAttribute('aria-hidden');
+        }
+        if (previewImage) {
+          previewImage.classList.remove('mt-4');
+          previewImage.classList.add('mt-10');
+        }
+        if (previewVideo) {
+          previewVideo.classList.remove('mt-4');
+          previewVideo.classList.add('mt-10');
+        }
       }
 
       var previewBackdrop = document.getElementById('previewBackdrop');
@@ -768,6 +916,9 @@
 
       var currentModalThemeId = null;
       var retryFailedBtn = document.getElementById('retryFailedBtn');
+      var retryFailedConfirmModal = document.getElementById('retryFailedConfirmModal');
+      var retryFailedConfirmOk = document.getElementById('retryFailedConfirmOk');
+      var retryFailedConfirmCancel = document.getElementById('retryFailedConfirmCancel');
       var storesFilterStatusEl = document.getElementById('storesFilterStatus');
       var storesMidSearchEl = document.getElementById('storesMidSearch');
       var storesFilterResetEl = document.getElementById('storesFilterReset');
@@ -783,29 +934,70 @@
         'failed': { text: '失败', color: 'bg-red-100 text-red-700' }
       };
 
+      /** 渠道为下发成功且处于「已下架」：含 `channelStatuses[].shelfStatus`，或旧数据仅有门店级 `store.shelfStatus` */
+      function channelIsOffShelf(store, cs) {
+        if (!cs || cs.status !== 'success') return false;
+        if (cs.shelfStatus === 'off_shelf') return true;
+        if (store.shelfStatus === 'off_shelf') return true;
+        return false;
+      }
+
+      /** 渠道下发成功且为「已上架」展示态（可点下架） */
+      function channelIsOnShelf(store, cs) {
+        return !!(cs && cs.status === 'success' && !channelIsOffShelf(store, cs));
+      }
+
+      /** 门店为成功且其下每条「渠道成功」记录均已下架时，允许从记录中删除该门店 */
+      function allSuccessChannelsOffShelf(store) {
+        if (store.status !== 'success') return false;
+        var arr = store.channelStatuses || [];
+        if (!arr.length) return store.shelfStatus === 'off_shelf';
+        var hasSuccess = false;
+        for (var i = 0; i < arr.length; i++) {
+          if (arr[i].status === 'success') {
+            hasSuccess = true;
+            if (!channelIsOffShelf(store, arr[i])) return false;
+          }
+        }
+        return hasSuccess;
+      }
+
       function renderStoreChannelRows(store) {
         var arr = store.channelStatuses;
         if (!arr || !arr.length) return '';
+        var midAttr = escapeHtml(String(store.mid || ''));
         var rows = arr.map(function(cs) {
           var st = storesModalStatusMap[cs.status] || { text: cs.status, color: 'bg-gray-100 text-gray-600' };
-          return '<div class="flex items-center justify-between text-xs mt-1"><span class="text-gray-500 truncate pr-2" title="' + escapeHtml(cs.channel || '') + '">' + escapeHtml(cs.channel || '—') + '</span><span class="flex-shrink-0 px-1.5 py-0.5 rounded font-medium ' + st.color + '">' + st.text + '</span></div>';
+          var chLabel = cs.channel != null && cs.channel !== '' ? String(cs.channel) : '—';
+          var chNameAttr = escapeHtml(chLabel);
+          var shelfHtml = '';
+          if (cs.status === 'success') {
+            if (channelIsOffShelf(store, cs)) {
+              shelfHtml = '<div class="flex flex-wrap items-center gap-1 mt-1 justify-end">' +
+                '<span class="text-xs text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">已下架</span>' +
+                '<button type="button" data-channel-action="on_shelf" data-store-mid="' + midAttr + '" data-channel="' + chNameAttr + '" class="text-xs px-1.5 py-0.5 rounded-ant border border-gray-300 hover:bg-gray-100 text-gray-700">重新上架</button>' +
+                '</div>';
+            } else {
+              shelfHtml = '<div class="flex flex-wrap items-center gap-1 mt-1 justify-end">' +
+                '<span class="text-xs text-green-700 bg-green-50 px-1.5 py-0.5 rounded border border-green-100">已上架</span>' +
+                '<button type="button" data-channel-action="off_shelf" data-store-mid="' + midAttr + '" data-channel="' + chNameAttr + '" class="text-xs px-1.5 py-0.5 rounded-ant border border-gray-300 hover:bg-gray-100 text-gray-700">下架</button>' +
+                '</div>';
+            }
+          }
+          return '<div class="mt-1.5 pt-1.5 border-t border-gray-100 first:border-t-0 first:pt-0 first:mt-0">' +
+            '<div class="flex items-center justify-between gap-2 text-xs">' +
+            '<span class="text-gray-600 truncate pr-2" title="' + chNameAttr + '">' + escapeHtml(chLabel) + '</span>' +
+            '<span class="flex-shrink-0 px-1.5 py-0.5 rounded font-medium ' + st.color + '">' + st.text + '</span>' +
+            '</div>' + shelfHtml + '</div>';
         }).join('');
-        return '<div class="mt-2 pt-2 border-t border-gray-100"><div class="text-xs text-gray-400 mb-0.5">各渠道下发</div>' + rows + '</div>';
+        return '<div class="mt-2 pt-2 border-t border-gray-100"><div class="text-xs text-gray-400 mb-1">各展示渠道与上下架</div>' + rows + '</div>';
       }
 
-      function renderStoreShelfActions(store) {
-        if (store.status !== 'success') return '';
+      function renderStoreRemoveRow(store) {
+        if (store.status !== 'success' || !allSuccessChannelsOffShelf(store)) return '';
         var midAttr = escapeHtml(String(store.mid || ''));
-        if (store.shelfStatus === 'off_shelf') {
-          return '<div class="mt-2 pt-2 border-t border-gray-100 flex flex-wrap items-center gap-2">' +
-            '<span class="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded">已下架</span>' +
-            '<button type="button" data-store-action="on_shelf" data-store-mid="' + midAttr + '" class="text-xs px-2 py-1 rounded-ant border border-gray-300 hover:bg-gray-100 text-gray-700">重新上架</button>' +
-            '<button type="button" data-store-action="remove" data-store-mid="' + midAttr + '" class="text-xs px-2 py-1 rounded-ant border border-red-200 text-red-600 hover:bg-red-50">删除</button>' +
-            '</div>';
-        }
         return '<div class="mt-2 pt-2 border-t border-gray-100 flex flex-wrap items-center gap-2">' +
-          '<span class="text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-100">已上架</span>' +
-          '<button type="button" data-store-action="off_shelf" data-store-mid="' + midAttr + '" class="text-xs px-2 py-1 rounded-ant border border-gray-300 hover:bg-gray-100 text-gray-700">下架</button>' +
+          '<button type="button" data-store-action="remove" data-store-mid="' + midAttr + '" class="text-xs px-2 py-1 rounded-ant border border-red-200 text-red-600 hover:bg-red-50">从记录中删除此门店</button>' +
           '</div>';
       }
 
@@ -838,7 +1030,7 @@
                 resultTimeHtml = '<div class="text-gray-400 text-xs mt-1">下发失败: —</div>';
               }
               var channelBlock = renderStoreChannelRows(store);
-              var shelfBlock = renderStoreShelfActions(store);
+              var removeBlock = renderStoreRemoveRow(store);
               return '<div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 p-3 bg-gray-50 rounded-ant">' +
                 '<div class="flex-1 min-w-0">' +
                   '<div class="flex items-start justify-between gap-2">' +
@@ -850,11 +1042,11 @@
                     '<span class="flex-shrink-0 px-2 py-0.5 rounded text-xs font-medium self-start ' + st.color + '">门店：' + st.text + '</span>' +
                   '</div>' +
                   channelBlock +
-                  shelfBlock +
+                  removeBlock +
                 '</div>' +
               '</div>';
             }).join('')
-          : '<p class="text-center text-sm text-gray-500 py-8 px-2">无匹配门店，请调整下发状态或 MID 关键词</p>';
+          : '<p class="text-center text-sm text-gray-500 py-8 px-2">无匹配门店，请调整门店状态或 MID 关键词</p>';
         if (storesFilteredHintEl) {
           if (filtered.length < stores.length || statusVal || midQ) {
             storesFilteredHintEl.textContent = '当前显示 ' + filtered.length + ' / ' + stores.length + ' 家门店';
@@ -911,8 +1103,13 @@
             store.status = rand < 0.7 ? 'success' : (rand < 0.9 ? 'pending' : 'failed');
             if (store.status === 'success') {
               store.successTime = formatSuccessTime(new Date());
-              if (store.shelfStatus !== 'off_shelf') store.shelfStatus = 'on_shelf';
+              delete store.shelfStatus;
               delete store.failedTime;
+              if (store.channelStatuses && store.channelStatuses.length) {
+                store.channelStatuses.forEach(function(ch) {
+                  if (ch.status === 'success') delete ch.shelfStatus;
+                });
+              }
             } else if (store.status === 'failed') {
               store.failedTime = formatSuccessTime(new Date());
             } else {
@@ -924,6 +1121,7 @@
               if (ch.status === 'failed') {
                 var r = Math.random();
                 ch.status = r < 0.75 ? 'success' : 'failed';
+                if (ch.status === 'success') delete ch.shelfStatus;
               }
               return ch;
             });
@@ -935,11 +1133,39 @@
         render();
       }
 
+      function openRetryFailedConfirmModal() {
+        if (!retryFailedConfirmModal) return;
+        retryFailedConfirmModal.classList.remove('hidden');
+        retryFailedConfirmModal.classList.add('flex');
+        retryFailedConfirmModal.setAttribute('aria-hidden', 'false');
+        if (retryFailedConfirmOk) retryFailedConfirmOk.focus();
+      }
+
+      function closeRetryFailedConfirmModal() {
+        if (!retryFailedConfirmModal) return;
+        retryFailedConfirmModal.classList.add('hidden');
+        retryFailedConfirmModal.classList.remove('flex');
+        retryFailedConfirmModal.setAttribute('aria-hidden', 'true');
+      }
+
       retryFailedBtn.addEventListener('click', function() {
-        if (confirm('确认重试失败的门店或渠道下发？')) {
-          retryFailedStores();
-        }
+        openRetryFailedConfirmModal();
       });
+
+      if (retryFailedConfirmCancel) {
+        retryFailedConfirmCancel.addEventListener('click', closeRetryFailedConfirmModal);
+      }
+      if (retryFailedConfirmOk) {
+        retryFailedConfirmOk.addEventListener('click', function() {
+          closeRetryFailedConfirmModal();
+          retryFailedStores();
+        });
+      }
+      if (retryFailedConfirmModal) {
+        retryFailedConfirmModal.addEventListener('click', function(e) {
+          if (e.target === retryFailedConfirmModal) closeRetryFailedConfirmModal();
+        });
+      }
 
       if (storesFilterStatusEl) {
         storesFilterStatusEl.addEventListener('change', function() {
@@ -975,8 +1201,43 @@
       }
 
       storesListContainer.addEventListener('click', function(e) {
+        if (!storesModal.classList.contains('flex')) return;
+        var chBtn = e.target.closest('[data-channel-action]');
+        if (chBtn) {
+          e.stopPropagation();
+          var chAction = chBtn.getAttribute('data-channel-action');
+          var midCh = chBtn.getAttribute('data-store-mid');
+          var chName = chBtn.getAttribute('data-channel');
+          if (!midCh || !currentModalThemeId || chName == null || chName === '') return;
+          var themesCh = getThemes();
+          var themeCh = themesCh.find(function(t) { return t.id === currentModalThemeId; });
+          if (!themeCh || !themeCh.distributedStores) return;
+          var storeCh = themeCh.distributedStores.find(function(s) { return String(s.mid) === String(midCh); });
+          if (!storeCh || storeCh.status !== 'success') return;
+          var arrCh = storeCh.channelStatuses || [];
+          var cs = arrCh.filter(function(c) { return String(c.channel || '') === String(chName); })[0];
+          if (!cs || cs.status !== 'success') return;
+          if (chAction === 'off_shelf') {
+            if (!channelIsOnShelf(storeCh, cs)) return;
+            cs.shelfStatus = 'off_shelf';
+            saveThemes(themesCh);
+            openStoresModal(currentModalThemeId);
+            render();
+            return;
+          }
+          if (chAction === 'on_shelf') {
+            if (!channelIsOffShelf(storeCh, cs)) return;
+            delete cs.shelfStatus;
+            if (storeCh.shelfStatus === 'off_shelf') delete storeCh.shelfStatus;
+            saveThemes(themesCh);
+            openStoresModal(currentModalThemeId);
+            render();
+            return;
+          }
+          return;
+        }
         var btn = e.target.closest('[data-store-action]');
-        if (!btn || !storesModal.classList.contains('flex')) return;
+        if (!btn) return;
         e.stopPropagation();
         var action = btn.getAttribute('data-store-action');
         var mid = btn.getAttribute('data-store-mid');
@@ -986,25 +1247,8 @@
         if (!theme || !theme.distributedStores) return;
         var store = theme.distributedStores.find(function(s) { return String(s.mid) === String(mid); });
         if (!store || store.status !== 'success') return;
-
-        if (action === 'off_shelf') {
-          if (store.shelfStatus === 'off_shelf') return;
-          store.shelfStatus = 'off_shelf';
-          saveThemes(themesList);
-          openStoresModal(currentModalThemeId);
-          render();
-          return;
-        }
-        if (action === 'on_shelf') {
-          if (store.shelfStatus !== 'off_shelf') return;
-          delete store.shelfStatus;
-          saveThemes(themesList);
-          openStoresModal(currentModalThemeId);
-          render();
-          return;
-        }
         if (action === 'remove') {
-          if (store.shelfStatus !== 'off_shelf') return;
+          if (!allSuccessChannelsOffShelf(store)) return;
           pendingRemoveStoreMid = mid;
           openStoreRemoveConfirm();
           return;
@@ -1040,6 +1284,7 @@
 
       function closeStoresModal() {
         closeStoreRemoveConfirm();
+        closeRetryFailedConfirmModal();
         storesModal.classList.add('hidden');
         storesModal.classList.remove('flex');
       }
@@ -1050,6 +1295,11 @@
       });
       document.addEventListener('keydown', function(e) {
         if (e.key !== 'Escape') return;
+        if (retryFailedConfirmModal && retryFailedConfirmModal.classList.contains('flex')) {
+          closeRetryFailedConfirmModal();
+          e.preventDefault();
+          return;
+        }
         if (storeRemoveConfirmModal && storeRemoveConfirmModal.classList.contains('flex')) {
           closeStoreRemoveConfirm();
           e.preventDefault();
@@ -1139,11 +1389,6 @@
         render();
       });
 
-      document.getElementById('filterDistributeStatus').addEventListener('change', function() {
-        currentPage = 1;
-        render();
-      });
-
       document.getElementById('filterEffectStatus').addEventListener('change', function() {
         currentPage = 1;
         render();
@@ -1161,7 +1406,6 @@
 
       document.getElementById('filterResetBtn').addEventListener('click', function() {
         document.getElementById('filterName').value = '';
-        document.getElementById('filterDistributeStatus').value = '';
         document.getElementById('filterEffectStatus').value = '';
         document.getElementById('filterStartDate').value = '';
         document.getElementById('filterEndDate').value = '';

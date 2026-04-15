@@ -7,6 +7,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="assets/common.css" />
   <script src="assets/toast.js"></script>
+  <script src="assets/kiosk-theme-media-idb.js"></script>
   <script>
     tailwind.config = { theme: { extend: { colors: { primary: '#1677ff', 'sidebar-bg': '#fafafa', 'sidebar-active': '#e6f4ff' }, borderRadius: { ant: '6px' } } } };
   </script>
@@ -187,16 +188,33 @@
       document.getElementById('editThemeId').value = theme.id;
       document.getElementById('editThemeName').value = theme.name || '';
 
-      if (theme.portraitImages && theme.portraitImages.length) {
-        portraitList = theme.portraitImages.map(function(img) {
-          var dataUrl = img.dataUrl || img;
-          return { url: dataUrl, dataUrl: dataUrl, type: img.type || 'image' };
-        });
+      function buildListFromStoredMedia(images) {
+        if (!images || !images.length) return Promise.resolve([]);
+        var idb = window.KioskThemeMediaIdb;
+        return Promise.all(images.map(function(img) {
+          if (typeof img === 'object' && img.type === 'video' && img.mediaRef && idb && idb.supported()) {
+            return idb.get(img.mediaRef).then(function(blob) {
+              if (!blob) {
+                return { url: '', dataUrl: null, type: 'video', mediaRef: img.mediaRef };
+              }
+              var url = URL.createObjectURL(blob);
+              return { url: url, dataUrl: null, type: 'video', mediaRef: img.mediaRef };
+            });
+          }
+          var dataUrl = typeof img === 'string' ? img : (img.dataUrl || '');
+          var t = (typeof img === 'object' && img.type) ? img.type : 'image';
+          return Promise.resolve({ url: dataUrl, dataUrl: dataUrl, type: t || 'image' });
+        }));
       }
-      if (theme.landscapeImages && theme.landscapeImages.length) {
-        landscapeList = theme.landscapeImages.map(function(img) {
-          var dataUrl = img.dataUrl || img;
-          return { url: dataUrl, dataUrl: dataUrl, type: img.type || 'image' };
+
+      function syncTypeRadiosFromLists() {
+        ['portrait', 'landscape'].forEach(function(role) {
+          var list = role === 'portrait' ? portraitList : landscapeList;
+          var isVideo = list.length > 0 && list[0].type === 'video';
+          var name = role === 'portrait' ? 'portraitType' : 'landscapeType';
+          document.querySelectorAll('input[name="' + name + '"]').forEach(function(r) {
+            r.checked = (r.value === 'video') === isVideo;
+          });
         });
       }
 
@@ -283,9 +301,13 @@
             var r = btn.getAttribute('data-role');
             var i = parseInt(btn.getAttribute('data-index'), 10);
             if (r === 'portrait') {
+              var removedP = portraitList[i];
+              if (removedP && removedP.url && String(removedP.url).indexOf('blob:') === 0) URL.revokeObjectURL(removedP.url);
               portraitList.splice(i, 1);
               renderPreviews('portrait');
             } else {
+              var removedL = landscapeList[i];
+              if (removedL && removedL.url && String(removedL.url).indexOf('blob:') === 0) URL.revokeObjectURL(removedL.url);
               landscapeList.splice(i, 1);
               renderPreviews('landscape');
             }
@@ -624,16 +646,39 @@
         Toast.success('已添加 ' + selectedMaterials.length + ' 个素材');
       });
 
-      renderPreviews('portrait');
-      renderPreviews('landscape');
-      updateAccept('portrait');
-      updateAccept('landscape');
-      updateHints('portrait');
-      updateHints('landscape');
+      function finishEditPageBoot() {
+        syncTypeRadiosFromLists();
+        renderPreviews('portrait');
+        renderPreviews('landscape');
+        updateAccept('portrait');
+        updateAccept('landscape');
+        updateHints('portrait');
+        updateHints('landscape');
+      }
+
+      Promise.all([
+        buildListFromStoredMedia(theme.portraitImages || []),
+        buildListFromStoredMedia(theme.landscapeImages || [])
+      ]).then(function(results) {
+        portraitList = results[0];
+        landscapeList = results[1];
+        finishEditPageBoot();
+      }).catch(function() {
+        portraitList = [];
+        landscapeList = [];
+        finishEditPageBoot();
+      });
+
+      function revokeListItemUrls(list) {
+        list.forEach(function(item) {
+          if (item.url && item.file) URL.revokeObjectURL(item.url);
+          else if (item.url && String(item.url).indexOf('blob:') === 0) URL.revokeObjectURL(item.url);
+        });
+      }
 
       document.querySelectorAll('input[name="portraitType"]').forEach(function(radio) {
         radio.addEventListener('change', function() {
-          portraitList.forEach(function(item) { if (item.url && item.file) URL.revokeObjectURL(item.url); });
+          revokeListItemUrls(portraitList);
           portraitList = [];
           updateAccept('portrait');
           updateHints('portrait');
@@ -642,7 +687,7 @@
       });
       document.querySelectorAll('input[name="landscapeType"]').forEach(function(radio) {
         radio.addEventListener('change', function() {
-          landscapeList.forEach(function(item) { if (item.url && item.file) URL.revokeObjectURL(item.url); });
+          revokeListItemUrls(landscapeList);
           landscapeList = [];
           updateAccept('landscape');
           updateHints('landscape');
@@ -682,9 +727,34 @@
       }
 
       function processMedia(item, isPortrait) {
-        if (item.dataUrl && !item.file) return Promise.resolve({ dataUrl: item.dataUrl, type: item.type || 'image' });
+        if (item.type === 'video' && item.mediaRef && !item.file) {
+          return Promise.resolve({ type: 'video', mediaRef: item.mediaRef });
+        }
+        if (item.dataUrl && !item.file) {
+          if (item.type === 'video' && window.KioskThemeMediaIdb && KioskThemeMediaIdb.supported() && typeof item.dataUrl === 'string' && item.dataUrl.indexOf('data:video') === 0) {
+            return fetch(item.dataUrl).then(function(r) { return r.blob(); }).then(function(blob) {
+              var ref = KioskThemeMediaIdb.newMediaId();
+              return KioskThemeMediaIdb.put(ref, blob).then(function() {
+                return { type: 'video', mediaRef: ref };
+              });
+            });
+          }
+          return Promise.resolve({ dataUrl: item.dataUrl, type: item.type || 'image' });
+        }
         if (!item.file) return Promise.resolve({ dataUrl: item.url, type: item.type || 'image' });
         if (item.type === 'video') {
+          if (window.KioskThemeMediaIdb && KioskThemeMediaIdb.supported()) {
+            var refNew = KioskThemeMediaIdb.newMediaId();
+            return KioskThemeMediaIdb.put(refNew, item.file).then(function() {
+              var oldRef = item.mediaRef;
+              if (oldRef && oldRef !== refNew) {
+                return KioskThemeMediaIdb.del(oldRef).catch(function() {}).then(function() {
+                  return { type: 'video', mediaRef: refNew };
+                });
+              }
+              return { type: 'video', mediaRef: refNew };
+            });
+          }
           return fileToDataUrl(item.file).then(function(dataUrl) {
             return { dataUrl: dataUrl, type: 'video' };
           });

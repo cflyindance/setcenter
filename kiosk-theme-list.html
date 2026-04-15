@@ -150,7 +150,7 @@
           <button type="button" id="storesFilterReset" class="px-2.5 py-1.5 text-xs rounded-ant border border-gray-200 bg-white hover:bg-gray-50 text-gray-600">重置</button>
         </div>
         <p id="storesFilteredHint" class="text-xs text-gray-400 hidden" aria-live="polite"></p>
-        <p class="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-ant px-2 py-1.5">下发<strong>成功</strong>的渠道可按渠道<strong>单独</strong>下架 / 重新上架；当该门店下<strong>所有已成功渠道</strong>均已下架后，可从记录中<strong>删除</strong>该门店；不支持在此修改门店名称或 MID。</p>
+        <p class="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-ant px-2 py-1.5">下发<strong>成功</strong>的渠道可按渠道<strong>单独</strong>下架 / 重新上架；每家门店均可<strong>删除门店</strong>（与渠道上下架状态无关）；不支持在此修改门店名称或 MID。</p>
       </div>
       <div id="storesListContainer" class="flex-1 overflow-auto p-4 space-y-2"></div>
     </div>
@@ -947,21 +947,6 @@
         return !!(cs && cs.status === 'success' && !channelIsOffShelf(store, cs));
       }
 
-      /** 门店为成功且其下每条「渠道成功」记录均已下架时，允许从记录中删除该门店 */
-      function allSuccessChannelsOffShelf(store) {
-        if (store.status !== 'success') return false;
-        var arr = store.channelStatuses || [];
-        if (!arr.length) return store.shelfStatus === 'off_shelf';
-        var hasSuccess = false;
-        for (var i = 0; i < arr.length; i++) {
-          if (arr[i].status === 'success') {
-            hasSuccess = true;
-            if (!channelIsOffShelf(store, arr[i])) return false;
-          }
-        }
-        return hasSuccess;
-      }
-
       function renderStoreChannelRows(store) {
         var arr = store.channelStatuses;
         if (!arr || !arr.length) return '';
@@ -994,10 +979,9 @@
       }
 
       function renderStoreRemoveRow(store) {
-        if (store.status !== 'success' || !allSuccessChannelsOffShelf(store)) return '';
         var midAttr = escapeHtml(String(store.mid || ''));
-        return '<div class="mt-2 pt-2 border-t border-gray-100 flex flex-wrap items-center gap-2">' +
-          '<button type="button" data-store-action="remove" data-store-mid="' + midAttr + '" class="text-xs px-2 py-1 rounded-ant border border-red-200 text-red-600 hover:bg-red-50">从记录中删除此门店</button>' +
+        return '<div class="mt-2 pt-2 border-t border-gray-100 flex flex-wrap items-center justify-end gap-2">' +
+          '<button type="button" data-store-action="remove" data-store-mid="' + midAttr + '" class="text-xs px-2 py-1 rounded-ant border border-red-200 text-red-600 hover:bg-red-50">删除门店</button>' +
           '</div>';
       }
 
@@ -1246,9 +1230,8 @@
         var theme = themesList.find(function(t) { return t.id === currentModalThemeId; });
         if (!theme || !theme.distributedStores) return;
         var store = theme.distributedStores.find(function(s) { return String(s.mid) === String(mid); });
-        if (!store || store.status !== 'success') return;
+        if (!store) return;
         if (action === 'remove') {
-          if (!allSuccessChannelsOffShelf(store)) return;
           pendingRemoveStoreMid = mid;
           openStoreRemoveConfirm();
           return;

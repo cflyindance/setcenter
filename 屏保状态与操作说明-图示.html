@@ -48,15 +48,15 @@ stateDiagram-v2
   </section>
 
   <section>
-    <h2>7.7.4 成功渠道已上架 / 已下架（按渠道）</h2>
+    <h2>7.7.4 渠道已展示 / 已不展示（按渠道）</h2>
     <div class="mermaid">
 stateDiagram-v2
   direction LR
-  ch_on: 渠道已上架
-  ch_off: 渠道已下架
-  ch_on --> ch_off: 渠道下架
-  ch_off --> ch_on: 渠道重新上架
-  note right of ch_off: 下发门店详情中可删除门店（与渠道是否已下架无关）
+  ch_on: 渠道已展示
+  ch_off: 渠道已不展示
+  ch_on --> ch_off: 不展示
+  ch_off --> ch_on: 恢复展示
+  note right of ch_off: 下发门店详情中可删除门店（与渠道是否已不展示无关）
     </div>
   </section>
 

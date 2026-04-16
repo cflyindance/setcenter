@@ -332,18 +332,8 @@
                 var r = Math.random();
                 status = r < 0.4 ? 'success' : (r < 0.7 ? 'pending' : 'failed');
               }
-              var channelStatuses = channelsForStores.map(function(chName, cidx) {
-                var chStatus = 'success';
-                if (status === 'failed') {
-                  chStatus = 'failed';
-                } else if (status === 'pending') {
-                  chStatus = 'pending';
-                } else if (scenario === 'channel_partial_fail' && status === 'success') {
-                  if (idx % 2 === 1 && cidx === channelsForStores.length - 1) {
-                    chStatus = 'failed';
-                  }
-                }
-                return { channel: chName, status: chStatus };
+              var channelStatuses = channelsForStores.map(function(chName) {
+                return { channel: chName };
               });
               var item = { name: store.name, mid: store.mid, status: status, channelStatuses: channelStatuses };
               if (status === 'success') {

@@ -150,7 +150,7 @@
           <button type="button" id="storesFilterReset" class="px-2.5 py-1.5 text-xs rounded-ant border border-gray-200 bg-white hover:bg-gray-50 text-gray-600">重置</button>
         </div>
         <p id="storesFilteredHint" class="text-xs text-gray-400 hidden" aria-live="polite"></p>
-        <p class="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-ant px-2 py-1.5">各展示渠道可按渠道<strong>单独</strong>设为<strong>不展示</strong>或<strong>恢复展示</strong>（经设备→POS→云端确认，操作中有<strong>执行中</strong>状态，超时未确认则<strong>执行失败</strong>可重试）；每家门店均可<strong>删除门店</strong>（与渠道展示状态无关）；不支持在此修改门店名称或 MID。</p>
+        <p class="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-ant px-2 py-1.5">各展示渠道可按渠道<strong>单独</strong>设为<strong>不展示</strong>或<strong>恢复展示</strong>（<strong>仅当该门店维度状态为「成功」</strong>时显示上述操作；云端下发 → Kiosk 回传；有<strong>执行中</strong>；云端收到成功/失败后更新；无回传则保持执行中）；每家门店均可<strong>删除门店</strong>；不支持在此修改门店名称或 MID。</p>
       </div>
       <div id="storesListContainer" class="flex-1 overflow-auto p-4 space-y-2"></div>
     </div>
@@ -936,10 +936,11 @@
       };
 
       /**
-       * 渠道「不展示 / 恢复展示」为异步闭环（Kiosk→POS→云端确认）。
-       * 产品：云端在约定时间内未确认则判失败（示例 5 分钟）。原型为便于演示缩短为毫秒值。
+       * 渠道「不展示 / 恢复展示」：云端 → Kiosk 执行 → Kiosk 回传执行结果 → 云端更新状态。
+       * 产品：仅当云端收到 Kiosk 回传的「执行成功 / 执行失败」后，配置端才结束执行中或展示失败；
+       * 若云端一直收不到回传，界面**一直执行中**（不因超时而自动判失败）。
+       * 原型用确定性分支模拟：成功 / 设备执行失败（已同步云端）/ 长期无回传（仅演示）。
        */
-      var CHANNEL_DISPLAY_CONFIRM_TIMEOUT_MS = 12000;
       var channelDisplayOpTimers = {};
 
       function channelDisplayOpKey(themeId, mid, channelName) {
@@ -949,8 +950,10 @@
       function cancelChannelDisplayOpTimer(key) {
         var t = channelDisplayOpTimers[key];
         if (!t) return;
-        if (typeof t === 'object' && t.fail != null) {
-          clearTimeout(t.fail);
+        if (typeof t === 'object') {
+          if (t.success != null) clearTimeout(t.success);
+          if (t.execFail != null) clearTimeout(t.execFail);
+          if (t.fail != null) clearTimeout(t.fail);
           if (t.ok != null) clearTimeout(t.ok);
         } else {
           clearTimeout(t);
@@ -964,28 +967,18 @@
         });
       }
 
-      /** 将超时的「执行中」判为失败并持久化（如刷新后已过时限） */
-      function reconcileExpiredChannelDisplaySync(themes) {
-        var now = Date.now();
-        var changed = false;
-        (themes || []).forEach(function(theme) {
-          var stores = theme.distributedStores;
-          if (!stores || !stores.length) return;
-          stores.forEach(function(store) {
-            var arr = store.channelStatuses;
-            if (!arr || !arr.length) return;
-            arr.forEach(function(cs) {
-              var ds = cs.displaySync;
-              if (!ds || ds.state !== 'pending') return;
-              var started = typeof ds.startedAt === 'number' ? ds.startedAt : 0;
-              if (now - started >= CHANNEL_DISPLAY_CONFIRM_TIMEOUT_MS) {
-                cs.displaySync = { state: 'failed', action: ds.action, reason: 'timeout' };
-                changed = true;
-              }
-            });
-          });
-        });
-        if (changed) saveThemes(themes);
+      /** 与 startedAt 绑定，保证同一次 pending 在刷新后原型分支不变 */
+      function channelDisplayDemoOutcome(themeId, mid, channelName, startedAt) {
+        var s = String(themeId) + '\x1e' + String(mid) + '\x1e' + String(channelName) + '\x1e' + String(startedAt);
+        var h = 0;
+        for (var i = 0; i < s.length; i++) {
+          h = ((h << 5) - h) + s.charCodeAt(i);
+          h = h | 0;
+        }
+        var u = Math.abs(h) % 100;
+        if (u < 40) return 'success';
+        if (u < 68) return 'exec_fail';
+        return 'stuck';
       }
 
       function findChannelCs(theme, mid, channelName) {
@@ -1019,14 +1012,15 @@
         render();
       }
 
-      function applyChannelDisplayOpFailure(themeId, mid, channelName, action) {
+      /** Kiosk 执行失败且执行结果已到达云端 → 配置端展示失败，可重试 */
+      function applyChannelDisplayOpExecFailure(themeId, mid, channelName, action) {
         var themes = getThemes();
         var theme = themes.filter(function(t) { return t.id === themeId; })[0];
         var found = findChannelCs(theme, mid, channelName);
         if (!found) return;
         var cs = found.cs;
         if (!cs.displaySync || cs.displaySync.state !== 'pending' || cs.displaySync.action !== action) return;
-        cs.displaySync = { state: 'failed', action: action, reason: 'timeout' };
+        cs.displaySync = { state: 'failed', action: action, reason: 'exec_failed' };
         saveThemes(themes);
         if (storesModal && storesModal.classList.contains('flex') && currentModalThemeId === themeId) {
           renderStoresModalList();
@@ -1034,71 +1028,56 @@
         render();
       }
 
-      /** 启动或重新挂载「云端确认」计时：先失败时限，可选随机提前成功（原型） */
+      /** 原型：按确定性分支挂载「成功」或「设备执行失败」计时器；无回传分支不挂载（一直执行中） */
       function armChannelDisplayOpTimers(themeId, mid, channelName, action) {
         var key = channelDisplayOpKey(themeId, mid, channelName);
         cancelChannelDisplayOpTimer(key);
-        var failAfter = CHANNEL_DISPLAY_CONFIRM_TIMEOUT_MS;
-        var failTimer = setTimeout(function() {
-          cancelChannelDisplayOpTimer(key);
-          applyChannelDisplayOpFailure(themeId, mid, channelName, action);
-        }, failAfter);
-        var okTimer = null;
-        if (Math.random() < 0.58) {
-          var successDelay = 900 + Math.floor(Math.random() * 2200);
-          if (successDelay < failAfter - 400) {
-            okTimer = setTimeout(function() {
-              var tpair = channelDisplayOpTimers[key];
-              if (tpair && tpair.fail != null) clearTimeout(tpair.fail);
-              cancelChannelDisplayOpTimer(key);
-              applyChannelDisplayOpSuccess(themeId, mid, channelName, action);
-            }, successDelay);
-          }
+        var themes = getThemes();
+        var theme = themes.filter(function(t) { return t.id === themeId; })[0];
+        var found = findChannelCs(theme, mid, channelName);
+        if (!found || !found.cs.displaySync || found.cs.displaySync.state !== 'pending') return;
+        var cs = found.cs;
+        if (found.cs.displaySync.action !== action) return;
+        if (typeof cs.displaySync.startedAt !== 'number') {
+          cs.displaySync.startedAt = Date.now();
+          saveThemes(themes);
         }
-        channelDisplayOpTimers[key] = { fail: failTimer, ok: okTimer };
+        var startedAt = cs.displaySync.startedAt;
+        var outcome = channelDisplayDemoOutcome(themeId, mid, channelName, startedAt);
+        var handles = {};
+        if (outcome === 'stuck') {
+          channelDisplayOpTimers[key] = handles;
+          return;
+        }
+        if (outcome === 'success') {
+          var d = 700 + Math.floor(Math.random() * 1800);
+          handles.success = setTimeout(function() {
+            cancelChannelDisplayOpTimer(key);
+            applyChannelDisplayOpSuccess(themeId, mid, channelName, action);
+          }, d);
+        } else {
+          var d2 = 800 + Math.floor(Math.random() * 1600);
+          handles.execFail = setTimeout(function() {
+            cancelChannelDisplayOpTimer(key);
+            applyChannelDisplayOpExecFailure(themeId, mid, channelName, action);
+          }, d2);
+        }
+        channelDisplayOpTimers[key] = handles;
       }
 
-      /** 打开弹窗时：对未过期 pending 重新挂载计时器（刷新页面后内存计时器丢失） */
+      /** 打开弹窗时：为仍为 pending 的渠道重新挂载原型计时器（刷新后内存丢失；无回传分支仍无计时器） */
       function resumePendingChannelDisplayOps(themeId) {
         var themes = getThemes();
         var theme = themes.filter(function(t) { return t.id === themeId; })[0];
         if (!theme || !theme.distributedStores) return;
         theme.distributedStores.forEach(function(store) {
+          if (store.status !== 'success') return;
           (store.channelStatuses || []).forEach(function(cs) {
             var ds = cs.displaySync;
             if (!ds || ds.state !== 'pending') return;
-            var action = ds.action;
-            if (action !== 'hide' && action !== 'show') return;
-            var started = typeof ds.startedAt === 'number' ? ds.startedAt : Date.now();
-            ds.startedAt = started;
-            var elapsed = Date.now() - started;
-            var remaining = CHANNEL_DISPLAY_CONFIRM_TIMEOUT_MS - elapsed;
-            var mid = store.mid;
-            var chName = cs.channel;
-            var key = channelDisplayOpKey(themeId, mid, chName);
-            cancelChannelDisplayOpTimer(key);
-            if (remaining <= 0) {
-              cs.displaySync = { state: 'failed', action: action, reason: 'timeout' };
-              saveThemes(themes);
-              return;
-            }
-            var failTimer = setTimeout(function() {
-              cancelChannelDisplayOpTimer(key);
-              applyChannelDisplayOpFailure(themeId, mid, chName, action);
-            }, remaining);
-            var okTimer = null;
-            if (Math.random() < 0.45) {
-              var sd = Math.min(700 + Math.floor(Math.random() * 1600), Math.max(200, remaining - 300));
-              if (sd > 200) {
-                okTimer = setTimeout(function() {
-                  var tpair = channelDisplayOpTimers[key];
-                  if (tpair && tpair.fail != null) clearTimeout(tpair.fail);
-                  cancelChannelDisplayOpTimer(key);
-                  applyChannelDisplayOpSuccess(themeId, mid, chName, action);
-                }, sd);
-              }
-            }
-            channelDisplayOpTimers[key] = { fail: failTimer, ok: okTimer };
+            var act = ds.action;
+            if (act !== 'hide' && act !== 'show') return;
+            armChannelDisplayOpTimers(themeId, store.mid, cs.channel, act);
           });
         });
       }
@@ -1123,22 +1102,51 @@
         var arr = store.channelStatuses;
         if (!arr || !arr.length) return '';
         var midAttr = escapeHtml(String(store.mid || ''));
+        var canChannelOperate = store.status === 'success';
         var rows = arr.map(function(cs) {
           var chLabel = cs.channel != null && cs.channel !== '' ? String(cs.channel) : '—';
           var chNameAttr = escapeHtml(chLabel);
           var ds = cs.displaySync;
           var shelfHtml = '';
-          if (ds && ds.state === 'pending') {
+          if (!canChannelOperate) {
+            if (ds && ds.state === 'pending') {
+              var pendShort = ds.action === 'hide' ? '执行中（不展示）' : '执行中（恢复展示）';
+              shelfHtml = '<div class="flex flex-col items-end gap-1 mt-1">' +
+                '<span class="text-xs text-gray-600 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">' + escapeHtml(pendShort) + '</span>' +
+                '<span class="text-[11px] text-gray-400">门店为「成功」后才可进行渠道操作</span>' +
+                '</div>';
+            } else if (ds && ds.state === 'failed') {
+              var failActRo = ds.action === 'show' ? '恢复展示' : '不展示';
+              var failRo = ds.reason === 'exec_failed'
+                ? '「' + failActRo + '」未成功（结果已到云端）'
+                : '「' + failActRo + '」失败';
+              shelfHtml = '<div class="flex flex-col items-end gap-1 mt-1">' +
+                '<span class="text-xs text-gray-600 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">' + escapeHtml(failRo) + '</span>' +
+                '<span class="text-[11px] text-gray-400">门店为「成功」后可重试渠道操作</span>' +
+                '</div>';
+            } else {
+              var roOnShelf = (store.status === 'failed' || store.status === 'pending') ? '展示' : '已展示';
+              var roLabel = channelIsOffShelf(store, cs) ? '已不展示' : roOnShelf;
+              shelfHtml = '<div class="flex flex-wrap items-center gap-1 mt-1 justify-end">' +
+                '<span class="text-xs text-gray-600 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">' + escapeHtml(roLabel) + '</span>' +
+                '<span class="text-[11px] text-gray-400">门店成功后可操作</span>' +
+                '</div>';
+            }
+          } else if (ds && ds.state === 'pending') {
             var pendLabel = ds.action === 'hide'
-              ? '执行中：正在请求不展示（等待云端确认）'
-              : '执行中：正在请求恢复展示（等待云端确认）';
+              ? '执行中：Kiosk 已收云端指令，正在执行「不展示」'
+              : '执行中：Kiosk 已收云端指令，正在执行「恢复展示」';
             shelfHtml = '<div class="flex flex-col items-end gap-1 mt-1">' +
               '<span class="text-xs text-amber-800 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded">' + escapeHtml(pendLabel) + '</span>' +
-              '<span class="text-[11px] text-gray-400">链路：设备 → POS → 云端；超时未确认将标记失败</span>' +
+              '<span class="text-[11px] text-gray-400">Kiosk 执行完成后回传云端；云端收到成功/失败后此处结束。若云端一直收不到回传，将一直保持本状态</span>' +
               '</div>';
           } else if (ds && ds.state === 'failed') {
             var failAct = ds.action === 'show' ? '恢复展示' : '不展示';
-            var failLine = '「' + failAct + '」执行失败（云端未在时限内确认）';
+            var failLine = ds.reason === 'exec_failed'
+              ? '「' + failAct + '」执行失败：Kiosk 执行未成功，结果已到达云端'
+              : (ds.reason === 'timeout'
+                ? '「' + failAct + '」失败（历史：曾按超时判定，建议重试）'
+                : '「' + failAct + '」执行失败');
             var retryAction = ds.action === 'show' ? 'show' : 'hide';
             shelfHtml = '<div class="flex flex-col items-end gap-1 mt-1">' +
               '<span class="text-xs text-red-700 bg-red-50 border border-red-100 px-1.5 py-0.5 rounded">' + escapeHtml(failLine) + '</span>' +
@@ -1228,8 +1236,6 @@
 
       function openStoresModal(themeId) {
         var themes = getThemes();
-        reconcileExpiredChannelDisplaySync(themes);
-        themes = getThemes();
         var theme = themes.find(function(t) { return t.id === themeId; });
         if (!theme || !theme.distributedStores) return;
         currentModalThemeId = themeId;
@@ -1251,7 +1257,6 @@
         }
         renderStoresModalList();
         resumePendingChannelDisplayOps(themeId);
-        renderStoresModalList();
         storesModal.classList.remove('hidden');
         storesModal.classList.add('flex');
       }
@@ -1287,8 +1292,20 @@
               }
             } else if (store.status === 'failed') {
               store.failedTime = formatSuccessTime(new Date());
+              if (store.channelStatuses && store.channelStatuses.length) {
+                store.channelStatuses.forEach(function(ch) {
+                  cancelChannelDisplayOpTimer(channelDisplayOpKey(currentModalThemeId, store.mid, ch.channel));
+                  delete ch.displaySync;
+                });
+              }
             } else {
               delete store.failedTime;
+              if (store.channelStatuses && store.channelStatuses.length) {
+                store.channelStatuses.forEach(function(ch) {
+                  cancelChannelDisplayOpTimer(channelDisplayOpKey(currentModalThemeId, store.mid, ch.channel));
+                  delete ch.displaySync;
+                });
+              }
             }
           }
           return store;
@@ -1378,7 +1395,7 @@
           var themeR = themesR.find(function(t) { return t.id === currentModalThemeId; });
           if (!themeR || !themeR.distributedStores) return;
           var storeR = themeR.distributedStores.find(function(s) { return String(s.mid) === String(rMid); });
-          if (!storeR) return;
+          if (!storeR || storeR.status !== 'success') return;
           var csR = (storeR.channelStatuses || []).filter(function(c) { return String(c.channel || '') === String(rCh); })[0];
           if (!csR || !csR.displaySync || csR.displaySync.state !== 'failed' || csR.displaySync.action !== rAct) return;
           csR.displaySync = { state: 'pending', action: rAct, startedAt: Date.now() };
@@ -1399,7 +1416,7 @@
           var themeCh = themesCh.find(function(t) { return t.id === currentModalThemeId; });
           if (!themeCh || !themeCh.distributedStores) return;
           var storeCh = themeCh.distributedStores.find(function(s) { return String(s.mid) === String(midCh); });
-          if (!storeCh) return;
+          if (!storeCh || storeCh.status !== 'success') return;
           var arrCh = storeCh.channelStatuses || [];
           var cs = arrCh.filter(function(c) { return String(c.channel || '') === String(chName); })[0];
           if (!cs) return;

@@ -351,6 +351,15 @@
         return { text: '已生效', color: 'bg-green-100 text-green-700' };
       }
 
+      /** 上架状态：草稿/未发布为未上架，其余为已上架 */
+      function getListShelfStatus(theme) {
+        if (!theme) return { text: '—', color: 'bg-gray-100 text-gray-600' };
+        if (theme.publishStatus === 'draft') {
+          return { text: '未上架', color: 'bg-gray-100 text-gray-600' };
+        }
+        return { text: '已上架', color: 'bg-green-100 text-green-700' };
+      }
+
       /** 列表展示口径：未上架固定「待生效」；已上架按生效时间计算 */
       function getListEffectStatus(theme) {
         if (!theme) return null;
@@ -464,6 +473,8 @@
             ? '<div><span class="text-gray-400">下发时间</span><div class="text-gray-700 mt-0.5">' + escapeHtml(distributeStr) + '</div></div>'
             : '';
           var channelsStr = (t.distributeChannels && t.distributeChannels.length) ? t.distributeChannels.join('、') : '--';
+          var shelfStatus = getListShelfStatus(t);
+          var shelfStatusBadge = '<span class="inline-block px-2 py-0.5 rounded text-xs font-medium ' + shelfStatus.color + '">' + escapeHtml(shelfStatus.text) + '</span>';
           var effectStatus = getListEffectStatus(t);
           var effStatusBadge;
           if (effectStatus) {
@@ -518,6 +529,7 @@
                 distributeBlock +
                 '<div><span class="text-gray-400">生效时间</span><div class="text-gray-700 mt-0.5">' + escapeHtml(effectStr) + '</div></div>' +
                 '<div><span class="text-gray-400">关联渠道</span><div class="text-gray-700 mt-0.5 break-words">' + escapeHtml(channelsStr) + '</div></div>' +
+                '<div><span class="text-gray-400">上架状态</span><div class="text-gray-700 mt-0.5">' + shelfStatusBadge + '</div></div>' +
                 '<div><span class="text-gray-400">生效状态</span><div class="text-gray-700 mt-0.5">' + effStatusBadge + '</div></div>' +
               '</div>' +
             '</div>' +

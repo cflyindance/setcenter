@@ -166,6 +166,36 @@
       document.querySelectorAll('.store-checkbox').forEach(function(cb) { cb.checked = this.checked; }, this);
       updateSelected();
     });
+
+    (function restoreStoresFromThemePrefs() {
+      var params = new URLSearchParams(location.search);
+      var tid = params.get('themeId');
+      if (!tid) {
+        try { tid = localStorage.getItem('current_theme_id_for_distribute') || ''; } catch (e) {}
+      }
+      if (!tid) return;
+      try {
+        var themes = JSON.parse(localStorage.getItem('kiosk_themes') || '[]');
+        var th = themes.filter(function(t) { return t.id === tid; })[0];
+        var prefs = th && th.lastDistributePrefs;
+        if (!prefs || !Array.isArray(prefs.stores) || !prefs.stores.length) return;
+        var midSet = {};
+        prefs.stores.forEach(function(s) {
+          if (s && s.mid != null) midSet[String(s.mid)] = true;
+        });
+        document.querySelectorAll('.store-checkbox').forEach(function(cb) {
+          var mid = cb.getAttribute('data-mid');
+          if (mid && midSet[String(mid)]) cb.checked = true;
+        });
+        var restored = [].map.call(document.querySelectorAll('.store-checkbox:checked'), function(cb) {
+          return { name: cb.getAttribute('data-name') || '', mid: cb.getAttribute('data-mid') || '' };
+        });
+        if (restored.length) {
+          localStorage.setItem('selected_stores_for_distribute', JSON.stringify(restored));
+        }
+      } catch (e2) {}
+    })();
+
     updateSelected();
 
     document.getElementById('nextBtnActive').addEventListener('click', function(e) {

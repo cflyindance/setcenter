@@ -38,8 +38,9 @@
             <label class="block text-sm font-medium text-gray-700 mb-2">开始时间 <span class="text-red-500">*</span></label>
             <div class="flex flex-wrap gap-2 items-center">
               <input type="date" id="startDateInput" class="flex-1 min-w-[140px] px-3 py-2 border border-gray-200 rounded-ant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" title="选择年月日" />
-              <input type="time" id="startTimeInput" class="w-28 px-3 py-2 border border-gray-200 rounded-ant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" title="选择时分" />
+              <input type="time" id="startTimeInput" class="w-28 px-3 py-2 border border-gray-200 rounded-ant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" title="选择时分" step="60" />
             </div>
+            <p class="text-gray-500 text-xs mt-1.5">开始日期不得早于今日；若开始日为今日，开始时刻不得早于当前时刻。</p>
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">结束时间 <span class="text-red-500">*</span></label>
@@ -74,16 +75,74 @@
       var endDateInput = document.getElementById('endDateInput');
       var endTimeInput = document.getElementById('endTimeInput');
 
+      function getTodayYmd() {
+        return formatDate(new Date());
+      }
+
+      /** 解析开始日期+时间为时间戳（本地） */
+      function parseStartDateTimeAsMs() {
+        if (!startDateInput || !startTimeInput) return null;
+        var sd = startDateInput.value;
+        var st = startTimeInput.value;
+        if (!sd || !st) return null;
+        var stNorm = st.length === 5 ? st + ':00' : st;
+        var ms = new Date(sd + 'T' + stNorm).getTime();
+        return isNaN(ms) ? null : ms;
+      }
+
+      /** 开始时间不得早于当前时刻 */
+      function validateStartNotInPast() {
+        var ms = parseStartDateTimeAsMs();
+        if (ms == null) return null;
+        if (ms < Date.now()) return '开始时间不得早于当前时间，请重新选择。';
+        return null;
+      }
+
+      /** 开始日期 min=今日；若开始日为今日则开始时刻 min=当前时刻 */
+      function applyStartDateTimeMinFromNow() {
+        if (!startDateInput || !startTimeInput) return;
+        var today = getTodayYmd();
+        startDateInput.setAttribute('min', today);
+        var sd = startDateInput.value;
+        if (sd === today) {
+          startTimeInput.setAttribute('min', formatTime(new Date()));
+        } else {
+          startTimeInput.removeAttribute('min');
+        }
+      }
+
+      /** 若已选开始早于当前时间，则钳到当前时刻并同步结束日默认 */
+      function clampStartToNowIfNeeded() {
+        if (!startDateInput || !startTimeInput) return;
+        var ms = parseStartDateTimeAsMs();
+        if (ms == null || ms >= Date.now()) {
+          applyStartDateTimeMinFromNow();
+          return;
+        }
+        var now = new Date();
+        startDateInput.value = formatDate(now);
+        startTimeInput.value = formatTime(now);
+        applyStartDateTimeMinFromNow();
+        syncEndDateToDayAfterStart();
+        applyEndMin();
+      }
+
       if (startDateInput) {
         function onStartDateChanged() {
+          applyStartDateTimeMinFromNow();
           syncEndDateToDayAfterStart();
+          applyEndMin();
         }
         startDateInput.addEventListener('change', onStartDateChanged);
         startDateInput.addEventListener('input', onStartDateChanged);
       }
       if (startTimeInput) {
-        startTimeInput.addEventListener('change', applyEndMin);
-        startTimeInput.addEventListener('input', applyEndMin);
+        function onStartTimeChanged() {
+          applyStartDateTimeMinFromNow();
+          applyEndMin();
+        }
+        startTimeInput.addEventListener('change', onStartTimeChanged);
+        startTimeInput.addEventListener('input', onStartTimeChanged);
       }
 
       function applyEndMin() {
@@ -147,21 +206,46 @@
         if (endTimeInput) endTimeInput.value = tStr;
         applyEndMin();
       }
-      if (startDateInput && !startDateInput.value) {
-        setStartNow();
-      }
-      if (endDateInput && !endDateInput.value) {
-        if (startDateInput && startDateInput.value) {
-          var nextInit = addOneCalendarDayYmd(startDateInput.value);
-          if (nextInit) endDateInput.value = nextInit;
-          if (startTimeInput && endTimeInput && !endTimeInput.value) {
-            endTimeInput.value = startTimeInput.value;
-          }
+      var prefsFromTheme = null;
+      (function loadLastDistributePrefs() {
+        var themeId = '';
+        try { themeId = localStorage.getItem('current_theme_id_for_distribute') || ''; } catch (e) {}
+        if (!themeId) return;
+        try {
+          var themes = JSON.parse(localStorage.getItem('kiosk_themes') || '[]');
+          var th = themes.filter(function(t) { return t.id === themeId; })[0];
+          if (th && th.lastDistributePrefs && typeof th.lastDistributePrefs === 'object') prefsFromTheme = th.lastDistributePrefs;
+        } catch (e2) {}
+      })();
+
+      if (prefsFromTheme && prefsFromTheme.startDate && prefsFromTheme.startTime && prefsFromTheme.endDate && prefsFromTheme.endTime) {
+        if (startDateInput) startDateInput.value = prefsFromTheme.startDate;
+        if (startTimeInput) startTimeInput.value = prefsFromTheme.startTime;
+        if (endDateInput) endDateInput.value = prefsFromTheme.endDate;
+        if (endTimeInput) endTimeInput.value = prefsFromTheme.endTime;
+      } else {
+        if (startDateInput && !startDateInput.value) {
+          setStartNow();
         }
-        if (!endDateInput.value) setEndNow();
+        if (endDateInput && !endDateInput.value) {
+          if (startDateInput && startDateInput.value) {
+            var nextInit = addOneCalendarDayYmd(startDateInput.value);
+            if (nextInit) endDateInput.value = nextInit;
+            if (startTimeInput && endTimeInput && !endTimeInput.value) {
+              endTimeInput.value = startTimeInput.value;
+            }
+          }
+          if (!endDateInput.value) setEndNow();
+        }
       }
 
+      clampStartToNowIfNeeded();
+      applyStartDateTimeMinFromNow();
       applyEndMin();
+
+      setInterval(function() {
+        applyStartDateTimeMinFromNow();
+      }, 60000);
 
       var submitConfirmModal = document.getElementById('submitConfirmModal');
       var submitConfirmOk = document.getElementById('submitConfirmOk');
@@ -343,6 +427,14 @@
               }
               return item;
             });
+            theme.lastDistributePrefs = {
+              stores: selectedStores.map(function(s) { return { name: s.name, mid: s.mid }; }),
+              channels: Array.isArray(selectedChannels) ? selectedChannels.slice() : [],
+              startDate: startDateInput ? startDateInput.value : '',
+              startTime: startTimeInput ? startTimeInput.value : '',
+              endDate: endDateInput ? endDateInput.value : '',
+              endTime: endTimeInput ? endTimeInput.value : ''
+            };
             localStorage.setItem('kiosk_themes', JSON.stringify(themes));
             try { localStorage.removeItem('selected_stores_for_distribute'); } catch (e) {}
             try { localStorage.removeItem('selected_channels_for_distribute'); } catch (e) {}
@@ -365,6 +457,11 @@
             Toast.warning('请完整填写开始时间与结束时间。');
             return;
           }
+          var startPastMsg = validateStartNotInPast();
+          if (startPastMsg) {
+            Toast.warning(startPastMsg);
+            return;
+          }
           if (endD < startD || (endD === startD && endT < startT)) {
             Toast.warning('结束时间不得早于开始时间，请重新选择。');
             return;
@@ -383,6 +480,11 @@
       }
       if (submitConfirmOk) {
         submitConfirmOk.addEventListener('click', function() {
+          var startPastMsg = validateStartNotInPast();
+          if (startPastMsg) {
+            Toast.warning(startPastMsg);
+            return;
+          }
           var overlapMsg = getEffectChannelOverlapMessage();
           if (overlapMsg) {
             Toast.warning(overlapMsg);

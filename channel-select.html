@@ -15,7 +15,7 @@
     <header class="flex-shrink-0 border-b border-gray-200 bg-white">
       <div class="flex items-center justify-between px-4 py-3">
         <div class="flex items-center gap-2">
-          <a href="store-select.html" class="p-2 rounded hover:bg-gray-100 text-gray-600" aria-label="返回">←</a>
+          <a href="store-select.html" id="backToStoreSelect" class="p-2 rounded hover:bg-gray-100 text-gray-600" aria-label="返回">←</a>
           <h1 class="text-base font-semibold">选择渠道</h1>
         </div>
         <a href="effective-time.html" id="nextBtn" class="px-4 py-2 rounded-ant text-gray-400 cursor-not-allowed pointer-events-none">Next →</a>
@@ -40,6 +40,35 @@
   <script>
     (function() {
       var channels = ['Kiosk', 'eMenu', 'CDS', 'OO', 'SDI', '取餐屏'];
+      (function hydrateChannelsFromTheme() {
+        try {
+          var raw = localStorage.getItem('selected_channels_for_distribute');
+          if (raw) {
+            var parsed = JSON.parse(raw);
+            if (Array.isArray(parsed) && parsed.length) return;
+          }
+        } catch (e) {}
+        var themeId = '';
+        try { themeId = localStorage.getItem('current_theme_id_for_distribute') || ''; } catch (e2) {}
+        if (!themeId) return;
+        try {
+          var themes = JSON.parse(localStorage.getItem('kiosk_themes') || '[]');
+          var th = themes.filter(function(t) { return t.id === themeId; })[0];
+          var prefs = th && th.lastDistributePrefs;
+          if (!prefs || !Array.isArray(prefs.channels) || !prefs.channels.length) return;
+          var filtered = prefs.channels.filter(function(ch) { return channels.indexOf(ch) >= 0; });
+          if (filtered.length) {
+            localStorage.setItem('selected_channels_for_distribute', JSON.stringify(filtered));
+          }
+        } catch (e3) {}
+      })();
+      var backToStore = document.getElementById('backToStoreSelect');
+      if (backToStore) {
+        try {
+          var tid = localStorage.getItem('current_theme_id_for_distribute') || '';
+          if (tid) backToStore.href = 'store-select.html?themeId=' + encodeURIComponent(tid);
+        } catch (e) {}
+      }
       var channelGrid = document.getElementById('channelGrid');
       var nextBtn = document.getElementById('nextBtn');
       var nextBtnActive = document.getElementById('nextBtnActive');

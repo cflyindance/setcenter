@@ -408,67 +408,6 @@
         return !!(es && es.text === '已生效' && theme.effectShelfStatus !== 'off_shelf');
       }
 
-      /**
-       * 列表聚合用：某门店某渠道是否计为「未展示」。
-       * 含 `displaySync` 执行中（hide→计未展示，show→仍计未展示直至成功）等与详情页一致的趋势。
-       */
-      function channelOffShelfStateForList(store, channelName) {
-        var arr = store.channelStatuses || [];
-        var cs = null;
-        for (var i = 0; i < arr.length; i++) {
-          if (String(arr[i].channel || '') === String(channelName)) {
-            cs = arr[i];
-            break;
-          }
-        }
-        if (cs) {
-          var ds = cs.displaySync;
-          if (ds && ds.state === 'pending' && ds.action === 'hide') return true;
-          if (ds && ds.state === 'pending' && ds.action === 'show') return true;
-          return channelIsOffShelf(store, cs);
-        }
-        return store.shelfStatus === 'off_shelf';
-      }
-
-      /**
-       * 屏保列表卡片「渠道展示」：已生效时按成功门店聚合；非已生效则全部归为未展示。
-       * 某渠道在任一成功门店上为未展示则归入「未展示」组。
-       */
-      function renderThemeChannelSummaryHtml(theme, effectStatus) {
-        var channels = (theme.distributeChannels && theme.distributeChannels.length) ? theme.distributeChannels.slice() : [];
-        if (!channels.length) {
-          return '<div class="text-gray-700 mt-0.5">—</div>';
-        }
-        var isEffectActive = effectStatus && effectStatus.text === '已生效';
-        var shown = [];
-        var hidden = [];
-        if (!isEffectActive) {
-          hidden = channels.slice();
-        } else {
-          var successStores = (theme.distributedStores || []).filter(function(s) { return s.status === 'success'; });
-          if (successStores.length === 0) {
-            hidden = channels.slice();
-          } else {
-            channels.forEach(function(ch) {
-              var anyOff = successStores.some(function(store) {
-                return channelOffShelfStateForList(store, ch);
-              });
-              if (anyOff) hidden.push(ch);
-              else shown.push(ch);
-            });
-          }
-        }
-        var parts = [];
-        if (shown.length) {
-          parts.push('<div class="text-xs text-green-700 mt-0.5 leading-relaxed break-words"><span class="text-gray-500">已展示：</span>' + escapeHtml(shown.join('、')) + '</div>');
-        }
-        if (hidden.length) {
-          parts.push('<div class="text-xs text-gray-600 mt-0.5 leading-relaxed break-words"><span class="text-gray-500">未展示：</span>' + escapeHtml(hidden.join('、')) + '</div>');
-        }
-        if (!parts.length) return '<div class="text-gray-700 mt-0.5">—</div>';
-        return parts.join('');
-      }
-
       function render() {
         var list = getThemes();
         var emptyState = document.getElementById('emptyState');
@@ -572,8 +511,8 @@
           var distributeBlock = (distributeStr && distributeStr !== '--')
             ? '<div><span class="text-gray-400">下发时间</span><div class="text-gray-700 mt-0.5">' + escapeHtml(distributeStr) + '</div></div>'
             : '';
+          var channelsStr = (t.distributeChannels && t.distributeChannels.length) ? t.distributeChannels.join('、') : '--';
           var effectStatus = computeEffectStatus(t.effectTime);
-          var channelsSummaryHtml = renderThemeChannelSummaryHtml(t, effectStatus);
           var themeEffectLocked = isThemeEffectActiveOnShelf(t);
           var showEffectRelist = !!(effectStatus && effectStatus.text === '已生效' && t.effectShelfStatus === 'off_shelf');
           var effStatusBadge;
@@ -639,7 +578,7 @@
                 '<div><span class="text-gray-400">创建时间</span><div class="text-gray-700 mt-0.5">' + escapeHtml(t.createTime || '—') + '</div></div>' +
                 distributeBlock +
                 '<div><span class="text-gray-400">生效时间</span><div class="text-gray-700 mt-0.5">' + escapeHtml(effectStr) + '</div></div>' +
-                '<div class="sm:col-span-2 lg:col-span-3"><span class="text-gray-400">渠道展示</span><div class="mt-0.5">' + channelsSummaryHtml + '</div></div>' +
+                '<div><span class="text-gray-400">展示渠道</span><div class="text-gray-700 mt-0.5 break-words">' + escapeHtml(channelsStr) + '</div></div>' +
                 '<div><span class="text-gray-400">生效状态</span><div class="text-gray-700 mt-0.5">' + effStatusBadge + '</div></div>' +
               '</div>' +
             '</div>' +

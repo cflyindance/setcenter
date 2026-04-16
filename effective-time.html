@@ -19,7 +19,7 @@
           <a href="channel-select.html" class="p-2 rounded hover:bg-gray-100 text-gray-600" aria-label="返回">←</a>
           <h1 class="text-base font-semibold">选择展示生效时间</h1>
         </div>
-        <a href="kiosk-theme-list.html" id="submitBtn" class="px-4 py-2 rounded-ant bg-primary text-white hover:bg-blue-600">完成</a>
+        <a href="kiosk-theme-list.html" id="submitBtn" class="px-4 py-2 rounded-ant bg-primary text-white hover:bg-blue-600">保存</a>
       </div>
       <div class="step-progress w-full">
         <div class="step-progress-inner" style="width: 100%"></div>
@@ -50,7 +50,7 @@
             </div>
           </div>
           <p class="text-gray-500 text-xs">点击日期框选择年/月/日，点击时间框选择时/分</p>
-          <p class="text-amber-800 bg-amber-50 border border-amber-100 rounded-ant px-3 py-2 text-xs leading-relaxed">若其他活动主题已占用<strong>相同展示渠道</strong>，则各主题的展示<strong>生效时间段不可重叠</strong>。</p>
+          <p class="text-amber-800 bg-amber-50 border border-amber-100 rounded-ant px-3 py-2 text-xs leading-relaxed">若其他活动主题已占用<strong>相同关联渠道</strong>，则各主题的展示<strong>生效时间段不可重叠</strong>。</p>
         </div>
       </div>
     </main>
@@ -343,18 +343,13 @@
           if (rangesOverlap(proposedRange, otherRange)) {
             var name = t.name ? String(t.name) : '未命名主题';
             var chLabel = proposedCh.join('、');
-            return '与主题「' + name + '」在相同展示渠道（' + chLabel + '）上的展示生效时间存在重叠，请调整生效时间或展示渠道后再下发。';
+            return '与主题「' + name + '」在相同关联渠道（' + chLabel + '）上的展示生效时间存在重叠，请调整生效时间或关联渠道后再下发。';
           }
         }
         return null;
       }
 
-      function executeSubmitDistribute() {
-        var overlapMsg = getEffectChannelOverlapMessage();
-        if (overlapMsg) {
-          Toast.warning(overlapMsg);
-          return;
-        }
+      function executeSaveDraftFromEffectiveTime() {
         var themeId = '';
         try { themeId = localStorage.getItem('current_theme_id_for_distribute') || ''; } catch (e) {}
         if (themeId) {
@@ -363,69 +358,29 @@
           var theme = themes.filter(function(t) { return t.id === themeId; })[0];
           if (theme) {
             theme.distributeTime = '--';
+            theme.publishStatus = 'draft';
+            var selectedChannels = [];
+            try {
+              selectedChannels = JSON.parse(localStorage.getItem('selected_channels_for_distribute') || '[]');
+            } catch (e) {}
+            var selectedStores = [];
+            try {
+              selectedStores = JSON.parse(localStorage.getItem('selected_stores_for_distribute') || '[]');
+            } catch (e) {}
+            var channelsForStores = Array.isArray(selectedChannels) && selectedChannels.length ? selectedChannels : ['Kiosk'];
             if (startDateInput && startTimeInput && endDateInput && endTimeInput) {
               var sD = startDateInput.value.replace(/-/g, '/');
               var sT = startTimeInput.value;
               var eD = endDateInput.value.replace(/-/g, '/');
               var eT = endTimeInput.value;
-              theme.effectTime = (sD && sT && eD && eT) ? sD + ' ' + sT + ' - ' + eD + ' ' + eT : (theme.effectTime || '--');
+              theme.effectTime = (sD && sT && eD && eT) ? sD + ' ' + sT + ' - ' + eD + ' ' + eT : '--';
             }
-            var selectedChannels = [];
-            try {
-              selectedChannels = JSON.parse(localStorage.getItem('selected_channels_for_distribute') || '[]');
-            } catch (e) {}
             theme.distributeChannels = Array.isArray(selectedChannels) ? selectedChannels : [];
-            var selectedStores = [];
-            try {
-              selectedStores = JSON.parse(localStorage.getItem('selected_stores_for_distribute') || '[]');
-            } catch (e) {}
-            var scenarioRand = Math.random();
-            var scenario;
-            if (scenarioRand < 0.15) {
-              scenario = 'all_success';
-            } else if (scenarioRand < 0.22) {
-              scenario = 'channel_partial_fail';
-            } else if (scenarioRand < 0.5) {
-              scenario = 'partial_fail';
-            } else if (scenarioRand < 0.7) {
-              scenario = 'all_fail';
-            } else {
-              scenario = 'pending';
-            }
-            function formatSuccessTime(d) {
-              var y = d.getFullYear();
-              var m = String(d.getMonth() + 1).padStart(2, '0');
-              var day = String(d.getDate()).padStart(2, '0');
-              var h = String(d.getHours()).padStart(2, '0');
-              var min = String(d.getMinutes()).padStart(2, '0');
-              var s = String(d.getSeconds()).padStart(2, '0');
-              return y + '/' + m + '/' + day + ' ' + h + ':' + min + ':' + s;
-            }
-            var channelsForStores = Array.isArray(selectedChannels) && selectedChannels.length ? selectedChannels : ['Kiosk'];
             theme.distributedStores = selectedStores.map(function(store, idx) {
-              var status;
-              if (scenario === 'all_success') {
-                status = 'success';
-              } else if (scenario === 'channel_partial_fail') {
-                status = 'success';
-              } else if (scenario === 'all_fail') {
-                status = 'failed';
-              } else if (scenario === 'partial_fail') {
-                status = (idx % 2 === 0) ? 'success' : 'failed';
-              } else {
-                var r = Math.random();
-                status = r < 0.4 ? 'success' : (r < 0.7 ? 'pending' : 'failed');
-              }
               var channelStatuses = channelsForStores.map(function(chName) {
                 return { channel: chName };
               });
-              var item = { name: store.name, mid: store.mid, status: status, channelStatuses: channelStatuses };
-              if (status === 'success') {
-                item.successTime = formatSuccessTime(new Date());
-              } else if (status === 'failed') {
-                item.failedTime = formatSuccessTime(new Date());
-              }
-              return item;
+              return { name: store.name, mid: store.mid, channelStatuses: channelStatuses };
             });
             theme.lastDistributePrefs = {
               stores: selectedStores.map(function(s) { return { name: s.name, mid: s.mid }; }),
@@ -443,68 +398,12 @@
           }
           try { localStorage.removeItem('current_theme_id_for_distribute'); } catch (e) {}
         }
-        window.location.href = 'kiosk-theme-list.html?done=1';
+        window.location.href = 'kiosk-theme-list.html';
       }
 
       document.getElementById('submitBtn').addEventListener('click', function(e) {
         e.preventDefault();
-        if (startDateInput && startTimeInput && endDateInput && endTimeInput) {
-          var startD = startDateInput.value;
-          var startT = startTimeInput.value;
-          var endD = endDateInput.value;
-          var endT = endTimeInput.value;
-          if (!startD || !startT || !endD || !endT) {
-            Toast.warning('请完整填写开始时间与结束时间。');
-            return;
-          }
-          var startPastMsg = validateStartNotInPast();
-          if (startPastMsg) {
-            Toast.warning(startPastMsg);
-            return;
-          }
-          if (endD < startD || (endD === startD && endT < startT)) {
-            Toast.warning('结束时间不得早于开始时间，请重新选择。');
-            return;
-          }
-        }
-        var overlapMsg = getEffectChannelOverlapMessage();
-        if (overlapMsg) {
-          Toast.warning(overlapMsg);
-          return;
-        }
-        openSubmitConfirmModal();
-      });
-
-      if (submitConfirmCancel) {
-        submitConfirmCancel.addEventListener('click', closeSubmitConfirmModal);
-      }
-      if (submitConfirmOk) {
-        submitConfirmOk.addEventListener('click', function() {
-          var startPastMsg = validateStartNotInPast();
-          if (startPastMsg) {
-            Toast.warning(startPastMsg);
-            return;
-          }
-          var overlapMsg = getEffectChannelOverlapMessage();
-          if (overlapMsg) {
-            Toast.warning(overlapMsg);
-            return;
-          }
-          closeSubmitConfirmModal();
-          executeSubmitDistribute();
-        });
-      }
-      if (submitConfirmModal) {
-        submitConfirmModal.addEventListener('click', function(e) {
-          if (e.target === submitConfirmModal) closeSubmitConfirmModal();
-        });
-      }
-      document.addEventListener('keydown', function(e) {
-        if (!submitConfirmModal || submitConfirmModal.classList.contains('hidden')) return;
-        if (e.key === 'Escape') {
-          e.preventDefault();
-          closeSubmitConfirmModal();
-        }
+        executeSaveDraftFromEffectiveTime();
       });
     })();
   </script>

@@ -16,7 +16,7 @@
     <header class="flex-shrink-0 border-b border-gray-200 bg-white">
       <div class="flex items-center justify-between px-4 py-3">
         <div class="flex items-center gap-2">
-          <a href="kiosk-theme-list.html" class="p-2 rounded hover:bg-gray-100 text-gray-600" aria-label="返回">←</a>
+          <a href="kiosk-theme-list.html" id="storeSelectBackBtn" class="p-2 rounded hover:bg-gray-100 text-gray-600" aria-label="返回">←</a>
           <h1 class="text-base font-semibold">选择门店</h1>
         </div>
         <a href="channel-select.html" id="nextBtn" class="px-4 py-2 rounded-ant text-gray-400 cursor-not-allowed pointer-events-none">Next →</a>
@@ -114,8 +114,17 @@
     (function() {
       var params = new URLSearchParams(location.search);
       var themeId = params.get('themeId');
+      var from = params.get('from') || '';
       if (themeId) {
         try { localStorage.setItem('current_theme_id_for_distribute', themeId); } catch (err) {}
+      }
+      var backBtn = document.getElementById('storeSelectBackBtn');
+      if (backBtn) {
+        if (from === 'edit' && themeId) {
+          backBtn.href = 'screensaver-edit.html?id=' + encodeURIComponent(themeId);
+        } else if (from === 'create') {
+          backBtn.href = 'screensaver-create.html';
+        }
       }
     })();
     var selectedCount = 0;

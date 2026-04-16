@@ -48,13 +48,42 @@
           <a href="kiosk-theme-list.html" class="p-2 rounded hover:bg-gray-100 text-gray-600" aria-label="返回">←</a>
           <h1 class="text-lg font-semibold">编辑主题</h1>
         </div>
-        <button type="submit" form="editForm" class="px-4 py-2 rounded-ant bg-primary text-white hover:bg-blue-600">确认</button>
+        <div class="flex items-center gap-2">
+          <button type="button" id="editNextStepBtn" class="px-4 py-2 rounded-ant bg-primary text-white hover:bg-blue-600">下一步</button>
+        </div>
       </header>
       <form id="editForm" class="max-w-3xl space-y-8">
         <input type="hidden" id="editThemeId" name="id" value="" />
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-2">主题名称</label>
           <input type="text" id="editThemeName" name="name" required placeholder="主题名称 *" class="w-full px-3 py-2 border border-gray-200 rounded-ant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" />
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label for="editIdleTimeoutInput" class="block text-sm font-medium text-gray-700 mb-2">无操作进入屏保时间</label>
+            <div class="flex items-center gap-2">
+              <input id="editIdleTimeoutInput" type="number" min="1" step="1" value="60" class="w-full px-3 py-2 border border-gray-200 rounded-ant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" />
+              <span class="text-gray-600 flex-shrink-0">秒</span>
+            </div>
+          </div>
+          <div>
+            <label for="editTransitionEffectSelect" class="block text-sm font-medium text-gray-700 mb-2">图片切换效果</label>
+            <select id="editTransitionEffectSelect" class="w-full px-3 py-2 border border-gray-200 rounded-ant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary bg-white">
+              <option value="slide">slide</option>
+              <option value="fade">fade</option>
+              <option value="zoom">zoom</option>
+              <option value="rotate">rotate</option>
+              <option value="bounce">bounce</option>
+              <option value="flip">flip</option>
+            </select>
+          </div>
+          <div>
+            <label for="editCarouselIntervalInput" class="block text-sm font-medium text-gray-700 mb-2">图片轮播时间间隔</label>
+            <div class="flex items-center gap-2">
+              <input id="editCarouselIntervalInput" type="number" min="1" step="1" value="3" class="w-full px-3 py-2 border border-gray-200 rounded-ant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" />
+              <span class="text-gray-600 flex-shrink-0">秒</span>
+            </div>
+          </div>
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-2">竖版 <span class="text-gray-400 font-normal">预览比例 9∶16</span></label>
@@ -185,8 +214,12 @@
         throw new Error('theme not found');
       }
 
+
       document.getElementById('editThemeId').value = theme.id;
       document.getElementById('editThemeName').value = theme.name || '';
+      document.getElementById('editIdleTimeoutInput').value = theme.idleTimeoutSec || 60;
+      document.getElementById('editTransitionEffectSelect').value = theme.transitionEffect || 'fade';
+      document.getElementById('editCarouselIntervalInput').value = theme.carouselIntervalSec || 3;
 
       function buildListFromStoredMedia(images) {
         if (!images || !images.length) return Promise.resolve([]);
@@ -766,11 +799,23 @@
         });
       }
 
-      document.getElementById('editForm').addEventListener('submit', function(e) {
-        e.preventDefault();
+      function saveEditedThemeAndRedirect(redirectUrl, opts) {
+        opts = opts || {};
+        var saveAsDraft = !!opts.saveAsDraft;
         var name = document.getElementById('editThemeName').value.trim();
+        var idleTimeoutSec = parseInt(document.getElementById('editIdleTimeoutInput').value, 10);
+        var transitionEffect = document.getElementById('editTransitionEffectSelect').value || 'fade';
+        var carouselIntervalSec = parseInt(document.getElementById('editCarouselIntervalInput').value, 10);
         if (!name) {
           Toast.warning('请填写主题名称');
+          return;
+        }
+        if (!idleTimeoutSec || idleTimeoutSec < 1) {
+          Toast.warning('请填写有效的无操作进入屏保时间（至少 1 秒）');
+          return;
+        }
+        if (!carouselIntervalSec || carouselIntervalSec < 1) {
+          Toast.warning('请填写有效的图片轮播时间间隔（至少 1 秒）');
           return;
         }
         if (portraitList.length === 0 && landscapeList.length === 0) {
@@ -792,11 +837,22 @@
             var idx = list.findIndex(function(t) { return t.id === id; });
             if (idx >= 0) {
               list[idx].name = name;
+              list[idx].publishStatus = saveAsDraft ? 'draft' : 'published';
+              list[idx].idleTimeoutSec = idleTimeoutSec;
+              list[idx].transitionEffect = transitionEffect;
+              list[idx].carouselIntervalSec = carouselIntervalSec;
               list[idx].portraitImages = portraitImages;
               list[idx].landscapeImages = landscapeImages;
               saveThemes(list);
             }
-            window.location.href = 'kiosk-theme-list.html';
+            if (!saveAsDraft) {
+              try { localStorage.setItem('current_theme_id_for_distribute', id); } catch (e) {}
+            } else {
+              try { localStorage.removeItem('current_theme_id_for_distribute'); } catch (e1) {}
+              try { localStorage.removeItem('selected_stores_for_distribute'); } catch (e2) {}
+              try { localStorage.removeItem('selected_channels_for_distribute'); } catch (e3) {}
+            }
+            window.location.href = redirectUrl;
           } catch (err) {
             console.error('保存失败:', err);
             Toast.error('保存失败，可能是存储空间不足。请尝试删除一些旧的屏保主题后重试。');
@@ -805,6 +861,14 @@
           console.error('图片处理失败:', err);
           Toast.error('素材处理失败，请重试');
         });
+      }
+
+      document.getElementById('editForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+      });
+
+      document.getElementById('editNextStepBtn').addEventListener('click', function() {
+        saveEditedThemeAndRedirect('store-select.html?themeId=' + encodeURIComponent(id) + '&from=edit', { saveAsDraft: true });
       });
     })();
   </script>

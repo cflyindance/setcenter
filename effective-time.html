@@ -28,10 +28,6 @@
     </header>
     <main class="flex-1 p-6 max-w-2xl mx-auto w-full">
       <h2 class="text-base font-semibold text-gray-800 mb-4">选择展示生效时间</h2>
-      <div class="flex items-start gap-2 p-3 rounded-ant bg-blue-50 text-blue-800 text-sm mb-6">
-        <span aria-hidden="true">ℹ️</span>
-        <p>During peak times, the update wait time may be longer. Please try to perform updates (scheduled) during off-peak times.</p>
-      </div>
       <div class="space-y-4">
         <p class="text-sm text-gray-600">请设置展示生效的 <strong>开始时间</strong> 与 <strong>结束时间</strong>（日期 + 时分）。</p>
         <div id="timePickerWrap" class="space-y-4">
@@ -41,7 +37,6 @@
               <input type="date" id="startDateInput" class="flex-1 min-w-[140px] px-3 py-2 border border-gray-200 rounded-ant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" title="选择年月日" />
               <input type="time" id="startTimeInput" class="w-28 px-3 py-2 border border-gray-200 rounded-ant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" title="选择时分" step="60" />
             </div>
-            <p class="text-gray-500 text-xs mt-1.5">开始日期不得早于今日；若开始日为今日，开始时刻不得早于当前时刻。</p>
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">结束时间 <span class="text-red-500">*</span></label>
@@ -50,7 +45,6 @@
               <input type="time" id="endTimeInput" class="w-28 px-3 py-2 border border-gray-200 rounded-ant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" title="选择时分" />
             </div>
           </div>
-          <p class="text-gray-500 text-xs">点击日期框选择年/月/日，点击时间框选择时/分</p>
           <div id="effectTimeConflictHints" class="hidden space-y-2" aria-live="polite">
             <div class="flex flex-wrap items-center gap-2 text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-ant px-3 py-2">
               <span id="effectTimeConflictSummary">在相同门店、相同渠道下，当前主题与已生效主题存在生效时间重叠。</span>

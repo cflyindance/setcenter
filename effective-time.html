@@ -7,6 +7,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="assets/common.css" />
   <script src="assets/toast.js"></script>
+  <script src="assets/kiosk-theme-overlap.js"></script>
   <script>
     tailwind.config = { theme: { extend: { colors: { primary: '#1677ff', 'sidebar-bg': '#fafafa', 'sidebar-active': '#e6f4ff' }, borderRadius: { ant: '6px' } } } };
   </script>
@@ -50,10 +51,42 @@
             </div>
           </div>
           <p class="text-gray-500 text-xs">点击日期框选择年/月/日，点击时间框选择时/分</p>
-          <p class="text-amber-800 bg-amber-50 border border-amber-100 rounded-ant px-3 py-2 text-xs leading-relaxed">若其他活动主题已占用<strong>相同关联渠道</strong>，则各主题的展示<strong>生效时间段不可重叠</strong>。</p>
+          <div id="effectTimeConflictHints" class="hidden space-y-2" aria-live="polite">
+            <div class="flex flex-wrap items-center gap-2 text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-ant px-3 py-2">
+              <span id="effectTimeConflictSummary">在相同门店、相同渠道下，当前主题与已生效主题存在生效时间重叠。</span>
+              <button type="button" id="effectTimeOverlapDetailBtn" class="text-primary font-medium hover:underline text-sm shrink-0">查看详情</button>
+            </div>
+          </div>
         </div>
       </div>
     </main>
+  </div>
+  <!-- 生效时间重叠详情（版式与列表「无法上架」说明相近，本页仅展示不拦截保存） -->
+  <div id="effectTimeOverlapModal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/50 p-4" aria-hidden="true">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md flex flex-col max-h-[85vh]" role="dialog" aria-modal="true" aria-labelledby="effectTimeOverlapTitle">
+      <div class="px-4 py-3 border-b border-gray-200 flex-shrink-0">
+        <h3 id="effectTimeOverlapTitle" class="font-semibold text-gray-800">冲突详情</h3>
+      </div>
+      <div class="px-4 py-4 min-h-0 max-h-[50vh] overflow-y-auto overscroll-contain">
+        <p id="effectTimeOverlapMessage" class="text-sm text-gray-600 leading-relaxed whitespace-pre-line"></p>
+      </div>
+      <div class="px-4 py-3 border-t border-gray-100 flex justify-end flex-shrink-0">
+        <button type="button" id="effectTimeOverlapOk" class="px-4 py-2 rounded-ant bg-primary text-white text-sm hover:bg-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1">知道了</button>
+      </div>
+    </div>
+  </div>
+  <!-- 保存：与已生效主题时间重叠时二次确认 -->
+  <div id="overlapSaveConfirmModal" class="fixed inset-0 z-[61] hidden items-center justify-center bg-black/50 p-4" aria-hidden="true">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-sm" role="dialog" aria-modal="true" aria-labelledby="overlapSaveConfirmTitle">
+      <div class="px-4 py-3 border-b border-gray-200">
+        <h3 id="overlapSaveConfirmTitle" class="font-semibold text-gray-800">提示</h3>
+      </div>
+      <p id="overlapSaveConfirmText" class="px-4 py-4 text-sm text-gray-600 leading-relaxed whitespace-pre-line"></p>
+      <div class="px-4 py-3 border-t border-gray-100 flex justify-end gap-2">
+        <button type="button" id="overlapSaveConfirmCancel" class="px-4 py-2 rounded-ant border border-gray-200 text-sm text-gray-700 hover:bg-gray-50">取消</button>
+        <button type="button" id="overlapSaveConfirmOk" class="px-4 py-2 rounded-ant bg-primary text-white text-sm hover:bg-blue-600">确定保存</button>
+      </div>
+    </div>
   </div>
   <!-- 完成下发二次确认（不使用浏览器 confirm） -->
   <div id="submitConfirmModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-4" aria-hidden="true">
@@ -138,6 +171,7 @@
           applyStartDateTimeMinFromNow();
           syncEndDateToDayAfterStart();
           applyEndMin();
+          updateOverlapRuleHint();
         }
         startDateInput.addEventListener('change', onStartDateChanged);
         startDateInput.addEventListener('input', onStartDateChanged);
@@ -146,6 +180,7 @@
         function onStartTimeChanged() {
           applyStartDateTimeMinFromNow();
           applyEndMin();
+          updateOverlapRuleHint();
         }
         startTimeInput.addEventListener('change', onStartTimeChanged);
         startTimeInput.addEventListener('input', onStartTimeChanged);
@@ -164,8 +199,20 @@
         }
       }
       if (endDateInput) {
-        endDateInput.addEventListener('change', applyEndMin);
-        endDateInput.addEventListener('input', applyEndMin);
+        function onEndDateEl() {
+          applyEndMin();
+          updateOverlapRuleHint();
+        }
+        endDateInput.addEventListener('change', onEndDateEl);
+        endDateInput.addEventListener('input', onEndDateEl);
+      }
+      if (endTimeInput) {
+        function onEndTimeEl() {
+          applyEndMin();
+          updateOverlapRuleHint();
+        }
+        endTimeInput.addEventListener('change', onEndTimeEl);
+        endTimeInput.addEventListener('input', onEndTimeEl);
       }
 
       function formatDate(d) {
@@ -193,8 +240,12 @@
         if (next) endDateInput.value = next;
         applyEndMin();
       }
+      /** 默认开始时刻：新建屏保流程为当前时间 +1 分钟，其余为当前时刻 */
       function setStartNow() {
         var d = new Date();
+        if (effFrom === 'create') {
+          d.setMinutes(d.getMinutes() + 1);
+        }
         if (startDateInput) startDateInput.value = formatDate(d);
         if (startTimeInput) startTimeInput.value = formatTime(d);
       }
@@ -249,10 +300,6 @@
       applyStartDateTimeMinFromNow();
       applyEndMin();
 
-      setInterval(function() {
-        applyStartDateTimeMinFromNow();
-      }, 60000);
-
       var submitConfirmModal = document.getElementById('submitConfirmModal');
       var submitConfirmOk = document.getElementById('submitConfirmOk');
       var submitConfirmCancel = document.getElementById('submitConfirmCancel');
@@ -272,29 +319,11 @@
         submitConfirmModal.setAttribute('aria-hidden', 'true');
       }
 
-      function getThemeChannelsForOverlap(theme) {
-        if (theme && Array.isArray(theme.distributeChannels) && theme.distributeChannels.length)
-          return theme.distributeChannels;
-        return ['Kiosk'];
-      }
-
       function parseStoredThemeEffectRange(theme) {
-        var et = theme && theme.effectTime;
-        if (!et || et === '--') return null;
-        if (et === '立即生效') {
-          var dist = theme.distributeTime;
-          if (dist && dist !== '--') {
-            var d = new Date(String(dist).replace(/\//g, '-'));
-            if (!isNaN(d.getTime())) return { start: d.getTime(), end: Infinity };
-          }
-          return { start: Date.now(), end: Infinity };
+        if (window.KioskThemeOverlap && typeof window.KioskThemeOverlap.parseStoredThemeEffectRange === 'function') {
+          return window.KioskThemeOverlap.parseStoredThemeEffectRange(theme);
         }
-        var parts = String(et).split(' - ');
-        if (parts.length !== 2) return null;
-        var start = new Date(parts[0].trim().replace(/\//g, '-'));
-        var end = new Date(parts[1].trim().replace(/\//g, '-'));
-        if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
-        return { start: start.getTime(), end: end.getTime() };
+        return null;
       }
 
       function rangesOverlap(a, b) {
@@ -302,31 +331,247 @@
         return a.start < b.end && b.start < a.end;
       }
 
-      function channelsShareAny(chA, chB) {
-        if (!chA.length || !chB.length) return false;
-        for (var i = 0; i < chA.length; i++) {
-          if (chB.indexOf(chA[i]) >= 0) return true;
+      function getThemeStoreChannelPairs(theme) {
+        var pairs = [];
+        var seen = {};
+        var stores = theme && theme.distributedStores ? theme.distributedStores : [];
+        stores.forEach(function(store) {
+          var mid = store && store.mid != null ? String(store.mid) : '';
+          var arr = store && Array.isArray(store.channelStatuses) ? store.channelStatuses : [];
+          arr.forEach(function(cs) {
+            var ch = cs && cs.channel != null ? String(cs.channel) : '';
+            if (!mid || !ch) return;
+            var key = mid + '\x1e' + ch;
+            if (seen[key]) return;
+            seen[key] = true;
+            pairs.push({ mid: mid, channel: ch });
+          });
+        });
+        return pairs;
+      }
+
+      function hasStoreChannelPair(theme, mid, channel) {
+        var m = String(mid);
+        var c = String(channel);
+        var stores = theme && theme.distributedStores ? theme.distributedStores : [];
+        for (var i = 0; i < stores.length; i++) {
+          var st = stores[i];
+          if (String(st.mid) !== m) continue;
+          var arr = st.channelStatuses || [];
+          for (var j = 0; j < arr.length; j++) {
+            if (String(arr[j].channel || '') === c) return true;
+          }
         }
         return false;
       }
 
-      /** 返回冲突说明文案；无冲突返回 null */
-      function getEffectChannelOverlapMessage() {
+      /** 与保存草稿一致：当前表单 + 已选门店/渠道 → 用于门店×渠道重叠判断 */
+      function buildOverlapCandidateTheme() {
         var themeId = '';
         try { themeId = localStorage.getItem('current_theme_id_for_distribute') || ''; } catch (e) {}
         if (!themeId) return null;
-        var raw = '';
-        try { raw = localStorage.getItem('kiosk_themes') || ''; } catch (e) {}
-        var themes = raw ? JSON.parse(raw) : [];
-        var currentTheme = themes.filter(function(t) { return t.id === themeId; })[0];
-        if (!currentTheme) return null;
-
+        var list = [];
+        try { list = JSON.parse(localStorage.getItem('kiosk_themes') || '[]'); } catch (e2) { return null; }
+        var base = list.filter(function(t) { return t.id === themeId; })[0];
+        var selectedStores = [];
         var selectedChannels = [];
-        try {
-          selectedChannels = JSON.parse(localStorage.getItem('selected_channels_for_distribute') || '[]');
-        } catch (e2) {}
-        var proposedCh = Array.isArray(selectedChannels) && selectedChannels.length ? selectedChannels.slice() : ['Kiosk'];
+        try { selectedStores = JSON.parse(localStorage.getItem('selected_stores_for_distribute') || '[]'); } catch (e3) {}
+        try { selectedChannels = JSON.parse(localStorage.getItem('selected_channels_for_distribute') || '[]'); } catch (e4) {}
+        var channelsForStores = Array.isArray(selectedChannels) && selectedChannels.length ? selectedChannels : ['Kiosk'];
+        var sD = startDateInput ? startDateInput.value : '';
+        var sT = startTimeInput ? startTimeInput.value : '';
+        var eD = endDateInput ? endDateInput.value : '';
+        var eT = endTimeInput ? endTimeInput.value : '';
+        var effectTime = (sD && sT && eD && eT) ? (sD.replace(/-/g, '/') + ' ' + sT + ' - ' + eD.replace(/-/g, '/') + ' ' + eT) : '--';
+        var distributedStores;
+        if (Array.isArray(selectedStores) && selectedStores.length) {
+          distributedStores = selectedStores.map(function(store) {
+            return {
+              name: store.name,
+              mid: store.mid,
+              channelStatuses: channelsForStores.map(function(chName) {
+                return { channel: chName };
+              })
+            };
+          });
+        } else if (base && base.distributedStores && base.distributedStores.length) {
+          distributedStores = base.distributedStores;
+        } else {
+          distributedStores = [];
+        }
+        return {
+          id: themeId,
+          name: base && base.name ? base.name : '',
+          effectTime: effectTime,
+          distributeTime: base && base.distributeTime,
+          distributedStores: distributedStores,
+          distributeChannels: Array.isArray(selectedChannels) ? selectedChannels : [],
+          publishStatus: base && base.publishStatus
+        };
+      }
 
+      /** 与列表上架校验一致，且对方须为「已生效」中的已上架主题 */
+      function findOverlapConflictsWithActivePublished() {
+        var candidate = buildOverlapCandidateTheme();
+        if (!candidate) return { conflicts: [], candidate: null };
+        var myRange = parseStoredThemeEffectRange(candidate);
+        if (!myRange) return { conflicts: [], candidate: candidate };
+        var myPairs = getThemeStoreChannelPairs(candidate);
+        if (!myPairs.length) return { conflicts: [], candidate: candidate };
+
+        var themes = [];
+        try { themes = JSON.parse(localStorage.getItem('kiosk_themes') || '[]'); } catch (e) { return { conflicts: [], candidate: candidate }; }
+        var conflicts = [];
+        var seen = {};
+        for (var i = 0; i < themes.length; i++) {
+          var other = themes[i];
+          if (!other || other.id === candidate.id) continue;
+          if (other.publishStatus !== 'published') continue;
+          var eff = computeEffectStatus(other.effectTime);
+          if (!eff || eff.text !== '已生效') continue;
+          var otherRange = parseStoredThemeEffectRange(other);
+          if (!otherRange) continue;
+          if (!rangesOverlap(myRange, otherRange)) continue;
+          var tname = other.name ? String(other.name) : '未命名主题';
+          for (var p = 0; p < myPairs.length; p++) {
+            var pair = myPairs[p];
+            if (!hasStoreChannelPair(other, pair.mid, pair.channel)) continue;
+            var key = String(other.id) + '\x1e' + pair.mid + '\x1e' + pair.channel;
+            if (seen[key]) continue;
+            seen[key] = true;
+            conflicts.push({
+              themeId: other.id,
+              themeName: tname,
+              effectTime: other.effectTime,
+              distributeTime: other.distributeTime,
+              mid: pair.mid,
+              channel: pair.channel
+            });
+          }
+        }
+        return { conflicts: conflicts, candidate: candidate };
+      }
+
+      /** 与 kiosk-theme-list formatPublishOverlapMessage 相同结构；首句不含「无法上架」（本页可保存） */
+      function formatEffectiveOverlapDetailMessage(conflicts, candidate) {
+        function overlapThemeTimeRangeLine(r) {
+          var et = r.effectTime;
+          if (!et || et === '--') return '生效时间段：—';
+          if (et === '立即生效') {
+            if (r.distributeTime && r.distributeTime !== '--') {
+              return '生效时间段：立即生效（记录时间 ' + r.distributeTime + '）';
+            }
+            return '生效时间段：立即生效';
+          }
+          return '生效时间段：' + et;
+        }
+        function lookupStoreName(mid) {
+          var stores = candidate && candidate.distributedStores ? candidate.distributedStores : [];
+          for (var i = 0; i < stores.length; i++) {
+            if (String(stores[i].mid) === String(mid)) {
+              return stores[i].name ? String(stores[i].name).trim() : '';
+            }
+          }
+          return '';
+        }
+
+        var enriched = conflicts.map(function(c) {
+          return {
+            themeId: c.themeId,
+            themeName: c.themeName,
+            effectTime: c.effectTime,
+            distributeTime: c.distributeTime,
+            mid: c.mid,
+            channel: c.channel,
+            storeName: lookupStoreName(c.mid)
+          };
+        });
+
+        var groupMap = {};
+        enriched.forEach(function(c) {
+          var gk = c.storeName ? ('name:' + c.storeName) : ('mid:' + c.mid);
+          if (!groupMap[gk]) groupMap[gk] = { storeName: c.storeName, rows: [] };
+          groupMap[gk].rows.push(c);
+        });
+
+        var gks = Object.keys(groupMap).sort(function(a, b) {
+          var A = groupMap[a];
+          var B = groupMap[b];
+          var an = A.storeName || '';
+          var bn = B.storeName || '';
+          if (an !== bn) return an.localeCompare(bn, 'zh-CN');
+          return a.localeCompare(b);
+        });
+
+        var globalSeen = {};
+        var globalThemes = [];
+        enriched.forEach(function(r) {
+          var id = r.themeId != null ? String(r.themeId) : '';
+          if (id) {
+            if (globalSeen[id]) return;
+            globalSeen[id] = true;
+          } else {
+            var fallback = r.themeName + '\x1e' + String(r.effectTime || '') + '\x1e' + r.mid + '\x1e' + r.channel;
+            if (globalSeen[fallback]) return;
+            globalSeen[fallback] = true;
+          }
+          globalThemes.push(r);
+        });
+        globalThemes.sort(function(a, b) {
+          return String(a.themeName).localeCompare(String(b.themeName), 'zh-CN');
+        });
+
+        var out = [];
+        out.push('在相同门店、相同渠道下，当前主题与已生效主题存在生效时间重叠。');
+        out.push('');
+        if (globalThemes.length) {
+          out.push('冲突已生效主题：');
+          globalThemes.forEach(function(r) {
+            out.push('  · 「' + r.themeName + '」');
+            out.push('    ' + overlapThemeTimeRangeLine(r));
+          });
+          out.push('');
+        }
+
+        gks.forEach(function(gk) {
+          var g = groupMap[gk];
+          var mids = {};
+          g.rows.forEach(function(r) { mids[r.mid] = true; });
+          var midStr = Object.keys(mids).join('、');
+          var title;
+          if (g.storeName) {
+            title = '「' + g.storeName + '」（MID ' + midStr + '）';
+          } else {
+            title = '（MID ' + midStr + '）';
+          }
+          out.push(title);
+          var chanSet = {};
+          g.rows.forEach(function(r) { chanSet[r.channel] = true; });
+          var chSorted = Object.keys(chanSet).sort(function(x, y) {
+            return String(x).localeCompare(String(y), 'zh-CN');
+          });
+          out.push('关联渠道：' + chSorted.join('、'));
+          out.push('');
+        });
+
+        return out.join('\n').trim();
+      }
+
+      function computeEffectStatus(effectTime) {
+        if (!effectTime || effectTime === '--') return null;
+        var now = new Date();
+        if (effectTime === '立即生效') return { text: '已生效' };
+        var parts = String(effectTime).split(' - ');
+        if (parts.length !== 2) return null;
+        var startDt = new Date(parts[0].trim().replace(/\//g, '-'));
+        var endDt = new Date(parts[1].trim().replace(/\//g, '-'));
+        if (isNaN(startDt.getTime()) || isNaN(endDt.getTime())) return null;
+        if (now < startDt) return { text: '待生效' };
+        if (now > endDt) return { text: '已失效' };
+        return { text: '已生效' };
+      }
+
+      function getProposedTimeRangeMs() {
         if (!startDateInput || !startTimeInput || !endDateInput || !endTimeInput) return null;
         var sd = startDateInput.value;
         var st = startTimeInput.value;
@@ -338,21 +583,65 @@
         var startMs = new Date(sd + 'T' + stNorm).getTime();
         var endMs = new Date(ed + 'T' + etNorm).getTime();
         if (isNaN(startMs) || isNaN(endMs)) return null;
-        var proposedRange = { start: startMs, end: endMs };
+        return { start: startMs, end: endMs };
+      }
 
-        for (var i = 0; i < themes.length; i++) {
-          var t = themes[i];
-          if (t.id === themeId) continue;
-          if (!channelsShareAny(proposedCh, getThemeChannelsForOverlap(t))) continue;
-          var otherRange = parseStoredThemeEffectRange(t);
-          if (!otherRange) continue;
-          if (rangesOverlap(proposedRange, otherRange)) {
-            var name = t.name ? String(t.name) : '未命名主题';
-            var chLabel = proposedCh.join('、');
-            return '与主题「' + name + '」在相同关联渠道（' + chLabel + '）上的展示生效时间存在重叠，请调整生效时间或关联渠道后再下发。';
-          }
+      var effectTimeConflictHintsEl = document.getElementById('effectTimeConflictHints');
+      var effectTimeOverlapModal = document.getElementById('effectTimeOverlapModal');
+      var effectTimeOverlapMessage = document.getElementById('effectTimeOverlapMessage');
+      var effectTimeOverlapOk = document.getElementById('effectTimeOverlapOk');
+      var effectTimeOverlapDetailBtn = document.getElementById('effectTimeOverlapDetailBtn');
+      var lastOverlapDetailBody = '';
+
+      function openEffectTimeOverlapModal() {
+        if (effectTimeOverlapMessage) effectTimeOverlapMessage.textContent = lastOverlapDetailBody || '';
+        if (!effectTimeOverlapModal) return;
+        effectTimeOverlapModal.classList.remove('hidden');
+        effectTimeOverlapModal.classList.add('flex');
+        effectTimeOverlapModal.setAttribute('aria-hidden', 'false');
+        if (effectTimeOverlapOk) effectTimeOverlapOk.focus();
+      }
+
+      function closeEffectTimeOverlapModal() {
+        if (!effectTimeOverlapModal) return;
+        effectTimeOverlapModal.classList.add('hidden');
+        effectTimeOverlapModal.classList.remove('flex');
+        effectTimeOverlapModal.setAttribute('aria-hidden', 'true');
+      }
+
+      function updateOverlapRuleHint() {
+        if (!effectTimeConflictHintsEl) return;
+        var result = findOverlapConflictsWithActivePublished();
+        var conflicts = result.conflicts;
+        var candidate = result.candidate;
+        if (conflicts.length && candidate) {
+          lastOverlapDetailBody = formatEffectiveOverlapDetailMessage(conflicts, candidate);
+          effectTimeConflictHintsEl.classList.remove('hidden');
+        } else {
+          lastOverlapDetailBody = '';
+          effectTimeConflictHintsEl.classList.add('hidden');
         }
-        return null;
+      }
+
+      updateOverlapRuleHint();
+
+      setInterval(function() {
+        applyStartDateTimeMinFromNow();
+        updateOverlapRuleHint();
+      }, 60000);
+
+      if (effectTimeOverlapDetailBtn) {
+        effectTimeOverlapDetailBtn.addEventListener('click', function() {
+          openEffectTimeOverlapModal();
+        });
+      }
+      if (effectTimeOverlapOk) {
+        effectTimeOverlapOk.addEventListener('click', closeEffectTimeOverlapModal);
+      }
+      if (effectTimeOverlapModal) {
+        effectTimeOverlapModal.addEventListener('click', function(e) {
+          if (e.target === effectTimeOverlapModal) closeEffectTimeOverlapModal();
+        });
       }
 
       function executeSaveDraftFromEffectiveTime() {
@@ -407,9 +696,97 @@
         window.location.href = 'kiosk-theme-list.html';
       }
 
+      var overlapSaveConfirmModal = document.getElementById('overlapSaveConfirmModal');
+      var overlapSaveConfirmText = document.getElementById('overlapSaveConfirmText');
+      var overlapSaveConfirmOk = document.getElementById('overlapSaveConfirmOk');
+      var overlapSaveConfirmCancel = document.getElementById('overlapSaveConfirmCancel');
+      var pendingOverlapSaveExecute = null;
+
+      function openOverlapSaveConfirmModal(conflicts) {
+        if (overlapSaveConfirmText && window.KioskThemeOverlap && typeof KioskThemeOverlap.formatOverlapSaveConfirmText === 'function') {
+          overlapSaveConfirmText.textContent = KioskThemeOverlap.formatOverlapSaveConfirmText(conflicts || []);
+        } else if (overlapSaveConfirmText && window.KioskThemeOverlap) {
+          overlapSaveConfirmText.textContent = KioskThemeOverlap.CONFIRM_MESSAGE;
+        }
+        if (!overlapSaveConfirmModal) {
+          var runDirect = pendingOverlapSaveExecute;
+          pendingOverlapSaveExecute = null;
+          if (typeof runDirect === 'function') runDirect();
+          return;
+        }
+        overlapSaveConfirmModal.classList.remove('hidden');
+        overlapSaveConfirmModal.classList.add('flex');
+        overlapSaveConfirmModal.setAttribute('aria-hidden', 'false');
+        if (overlapSaveConfirmOk) overlapSaveConfirmOk.focus();
+      }
+
+      function closeOverlapSaveConfirmModal() {
+        if (!overlapSaveConfirmModal) return;
+        overlapSaveConfirmModal.classList.add('hidden');
+        overlapSaveConfirmModal.classList.remove('flex');
+        overlapSaveConfirmModal.setAttribute('aria-hidden', 'true');
+      }
+
       document.getElementById('submitBtn').addEventListener('click', function(e) {
         e.preventDefault();
+        var pastErr = validateStartNotInPast();
+        if (pastErr) {
+          Toast.warning(pastErr);
+          return;
+        }
+        var pr = getProposedTimeRangeMs();
+        if (!pr) {
+          Toast.warning('请填写完整的开始与结束时间。');
+          return;
+        }
+        if (pr.start >= pr.end) {
+          Toast.warning('结束时间须晚于开始时间。');
+          return;
+        }
+        var overlapResult = findOverlapConflictsWithActivePublished();
+        if (overlapResult.conflicts && overlapResult.conflicts.length) {
+          pendingOverlapSaveExecute = executeSaveDraftFromEffectiveTime;
+          openOverlapSaveConfirmModal(overlapResult.conflicts);
+          return;
+        }
         executeSaveDraftFromEffectiveTime();
+      });
+
+      if (overlapSaveConfirmOk) {
+        overlapSaveConfirmOk.addEventListener('click', function() {
+          var fn = pendingOverlapSaveExecute;
+          pendingOverlapSaveExecute = null;
+          closeOverlapSaveConfirmModal();
+          if (typeof fn === 'function') fn();
+        });
+      }
+      if (overlapSaveConfirmCancel) {
+        overlapSaveConfirmCancel.addEventListener('click', function() {
+          pendingOverlapSaveExecute = null;
+          closeOverlapSaveConfirmModal();
+        });
+      }
+      if (overlapSaveConfirmModal) {
+        overlapSaveConfirmModal.addEventListener('click', function(e) {
+          if (e.target === overlapSaveConfirmModal) {
+            pendingOverlapSaveExecute = null;
+            closeOverlapSaveConfirmModal();
+          }
+        });
+      }
+
+      document.addEventListener('keydown', function(e) {
+        if (e.key !== 'Escape') return;
+        if (overlapSaveConfirmModal && !overlapSaveConfirmModal.classList.contains('hidden')) {
+          e.preventDefault();
+          pendingOverlapSaveExecute = null;
+          closeOverlapSaveConfirmModal();
+          return;
+        }
+        if (effectTimeOverlapModal && !effectTimeOverlapModal.classList.contains('hidden')) {
+          e.preventDefault();
+          closeEffectTimeOverlapModal();
+        }
       });
     })();
   </script>

@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="assets/common.css" />
   <script src="assets/toast.js"></script>
   <script src="assets/kiosk-theme-media-idb.js"></script>
+  <script src="assets/kiosk-theme-overlap.js"></script>
   <script>
     tailwind.config = { theme: { extend: { colors: { primary: '#1677ff', 'sidebar-bg': '#fafafa', 'sidebar-active': '#e6f4ff' }, borderRadius: { ant: '6px' } } } };
   </script>
@@ -139,6 +140,19 @@
       <div class="px-4 py-3 border-t border-gray-100 flex justify-end gap-2">
         <button type="button" id="createBackConfirmCancel" class="px-4 py-2 rounded-ant border border-gray-200 text-sm text-gray-700 hover:bg-gray-50">取消</button>
         <button type="button" id="createBackConfirmOk" class="px-4 py-2 rounded-ant bg-primary text-white text-sm hover:bg-blue-600">确定返回</button>
+      </div>
+    </div>
+  </div>
+  <!-- 保存：与已生效主题时间重叠确认 -->
+  <div id="saveOverlapConfirmModal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/50 p-4" aria-hidden="true">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-sm" role="dialog" aria-modal="true" aria-labelledby="saveOverlapConfirmTitle">
+      <div class="px-4 py-3 border-b border-gray-200">
+        <h3 id="saveOverlapConfirmTitle" class="font-semibold text-gray-800">提示</h3>
+      </div>
+      <p id="saveOverlapConfirmText" class="px-4 py-4 text-sm text-gray-600 leading-relaxed whitespace-pre-line"></p>
+      <div class="px-4 py-3 border-t border-gray-100 flex justify-end gap-2">
+        <button type="button" id="saveOverlapConfirmCancel" class="px-4 py-2 rounded-ant border border-gray-200 text-sm text-gray-700 hover:bg-gray-50">取消</button>
+        <button type="button" id="saveOverlapConfirmOk" class="px-4 py-2 rounded-ant bg-primary text-white text-sm hover:bg-blue-600">确定保存</button>
       </div>
     </div>
   </div>
@@ -521,6 +535,35 @@
         });
       }
 
+      var saveOverlapConfirmModal = document.getElementById('saveOverlapConfirmModal');
+      var saveOverlapConfirmText = document.getElementById('saveOverlapConfirmText');
+      var saveOverlapPending = null;
+
+      function openSaveOverlapConfirm(onConfirm, conflicts) {
+        saveOverlapPending = onConfirm;
+        if (saveOverlapConfirmText && window.KioskThemeOverlap && typeof KioskThemeOverlap.formatOverlapSaveConfirmText === 'function') {
+          saveOverlapConfirmText.textContent = KioskThemeOverlap.formatOverlapSaveConfirmText(conflicts || []);
+        } else if (saveOverlapConfirmText && window.KioskThemeOverlap) {
+          saveOverlapConfirmText.textContent = KioskThemeOverlap.CONFIRM_MESSAGE;
+        }
+        if (!saveOverlapConfirmModal) {
+          if (typeof onConfirm === 'function') onConfirm();
+          return;
+        }
+        saveOverlapConfirmModal.classList.remove('hidden');
+        saveOverlapConfirmModal.classList.add('flex');
+        saveOverlapConfirmModal.setAttribute('aria-hidden', 'false');
+        var okBtn = document.getElementById('saveOverlapConfirmOk');
+        if (okBtn) okBtn.focus();
+      }
+
+      function closeSaveOverlapConfirmModal() {
+        if (!saveOverlapConfirmModal) return;
+        saveOverlapConfirmModal.classList.add('hidden');
+        saveOverlapConfirmModal.classList.remove('flex');
+        saveOverlapConfirmModal.setAttribute('aria-hidden', 'true');
+      }
+
       function saveThemeAndRedirect(redirectUrl) {
         var nameInput = document.querySelector('#screensaverForm input[name="name"]');
         var idleTimeoutInput = document.getElementById('idleTimeoutInput');
@@ -546,62 +589,75 @@
           Toast.warning('请至少上传一个竖版或横版的屏保素材');
           return;
         }
-        var now = new Date();
-        var createTime = now.getFullYear() + '/' + String(now.getMonth() + 1).padStart(2, '0') + '/' + String(now.getDate()).padStart(2, '0') + ' ' + String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
         var allList = getThemes();
         var oldTheme = createDraftThemeId ? allList.filter(function(t) { return t.id === createDraftThemeId; })[0] : null;
-        var theme = {
-          id: oldTheme ? oldTheme.id : ('t' + Date.now()),
-          name: name,
-          effectTime: oldTheme && oldTheme.effectTime !== undefined ? oldTheme.effectTime : '',
-          createTime: oldTheme && oldTheme.createTime ? oldTheme.createTime : createTime,
-          idleTimeoutSec: idleTimeoutSec,
-          transitionEffect: transitionEffect,
-          carouselIntervalSec: carouselIntervalSec,
-          portraitImages: [],
-          landscapeImages: [],
-          publishStatus: oldTheme && oldTheme.publishStatus ? oldTheme.publishStatus : 'draft'
-        };
-        if (oldTheme) {
-          if (oldTheme.distributeTime !== undefined) theme.distributeTime = oldTheme.distributeTime;
-          if (oldTheme.distributedStores) theme.distributedStores = oldTheme.distributedStores;
-          if (oldTheme.distributeChannels) theme.distributeChannels = oldTheme.distributeChannels;
-          if (oldTheme.lastDistributePrefs) theme.lastDistributePrefs = oldTheme.lastDistributePrefs;
-        }
-        var portraitPromises = portraitList.map(function(item) {
-          return processMedia(item, true);
-        });
-        var landscapePromises = landscapeList.map(function(item) {
-          return processMedia(item, false);
-        });
-        Promise.all([].concat(portraitPromises, landscapePromises)).then(function(allMedia) {
-          var pCount = portraitList.length;
-          theme.portraitImages = allMedia.slice(0, pCount);
-          theme.landscapeImages = allMedia.slice(pCount, pCount + landscapeList.length);
-          try {
-            var list = getThemes();
-            if (createDraftThemeId && oldTheme) {
-              var idx = list.findIndex(function(t) { return t.id === createDraftThemeId; });
-              if (idx >= 0) {
-                list[idx] = theme;
+        var nextThemeId = oldTheme ? oldTheme.id : ('t' + Date.now());
+
+        function runPersistThemeAndRedirect() {
+          var now = new Date();
+          var createTime = now.getFullYear() + '/' + String(now.getMonth() + 1).padStart(2, '0') + '/' + String(now.getDate()).padStart(2, '0') + ' ' + String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+          var theme = {
+            id: nextThemeId,
+            name: name,
+            effectTime: oldTheme && oldTheme.effectTime !== undefined ? oldTheme.effectTime : '',
+            createTime: oldTheme && oldTheme.createTime ? oldTheme.createTime : createTime,
+            idleTimeoutSec: idleTimeoutSec,
+            transitionEffect: transitionEffect,
+            carouselIntervalSec: carouselIntervalSec,
+            portraitImages: [],
+            landscapeImages: [],
+            publishStatus: oldTheme && oldTheme.publishStatus ? oldTheme.publishStatus : 'draft'
+          };
+          if (oldTheme) {
+            if (oldTheme.distributeTime !== undefined) theme.distributeTime = oldTheme.distributeTime;
+            if (oldTheme.distributedStores) theme.distributedStores = oldTheme.distributedStores;
+            if (oldTheme.distributeChannels) theme.distributeChannels = oldTheme.distributeChannels;
+            if (oldTheme.lastDistributePrefs) theme.lastDistributePrefs = oldTheme.lastDistributePrefs;
+          }
+          var portraitPromises = portraitList.map(function(item) {
+            return processMedia(item, true);
+          });
+          var landscapePromises = landscapeList.map(function(item) {
+            return processMedia(item, false);
+          });
+          Promise.all([].concat(portraitPromises, landscapePromises)).then(function(allMedia) {
+            var pCount = portraitList.length;
+            theme.portraitImages = allMedia.slice(0, pCount);
+            theme.landscapeImages = allMedia.slice(pCount, pCount + landscapeList.length);
+            try {
+              var list = getThemes();
+              if (createDraftThemeId && oldTheme) {
+                var idx = list.findIndex(function(t) { return t.id === createDraftThemeId; });
+                if (idx >= 0) {
+                  list[idx] = theme;
+                } else {
+                  list.unshift(theme);
+                }
               } else {
                 list.unshift(theme);
               }
-            } else {
-              list.unshift(theme);
+              saveThemes(list);
+              try { localStorage.setItem('current_theme_id_for_distribute', theme.id); } catch (e1) {}
+              var url = redirectUrl.replace('{themeId}', encodeURIComponent(theme.id));
+              window.location.href = url;
+            } catch (err) {
+              console.error('保存失败:', err);
+              Toast.error('保存失败，可能是存储空间不足。请尝试删除一些旧的屏保主题后重试。');
             }
-            saveThemes(list);
-            try { localStorage.setItem('current_theme_id_for_distribute', theme.id); } catch (e1) {}
-            var url = redirectUrl.replace('{themeId}', encodeURIComponent(theme.id));
-            window.location.href = url;
-          } catch (err) {
-            console.error('保存失败:', err);
-            Toast.error('保存失败，可能是存储空间不足。请尝试删除一些旧的屏保主题后重试。');
+          }).catch(function(err) {
+            console.error('图片处理失败:', err);
+            Toast.error('素材处理失败，请重试');
+          });
+        }
+
+        if (window.KioskThemeOverlap) {
+          var ov = KioskThemeOverlap.findActivePublishedOverlaps(nextThemeId, oldTheme || null);
+          if (ov.conflicts && ov.conflicts.length) {
+            openSaveOverlapConfirm(runPersistThemeAndRedirect, ov.conflicts);
+            return;
           }
-        }).catch(function(err) {
-          console.error('图片处理失败:', err);
-          Toast.error('素材处理失败，请重试');
-        });
+        }
+        runPersistThemeAndRedirect();
       }
 
       document.getElementById('screensaverForm').addEventListener('submit', function(e) {
@@ -610,6 +666,33 @@
 
       document.getElementById('distributeBtn').addEventListener('click', function() {
         saveThemeAndRedirect('store-select.html?themeId={themeId}&from=create');
+      });
+
+      document.getElementById('saveOverlapConfirmOk').addEventListener('click', function() {
+        var fn = saveOverlapPending;
+        saveOverlapPending = null;
+        closeSaveOverlapConfirmModal();
+        if (typeof fn === 'function') fn();
+      });
+      document.getElementById('saveOverlapConfirmCancel').addEventListener('click', function() {
+        saveOverlapPending = null;
+        closeSaveOverlapConfirmModal();
+      });
+      if (saveOverlapConfirmModal) {
+        saveOverlapConfirmModal.addEventListener('click', function(e) {
+          if (e.target === saveOverlapConfirmModal) {
+            saveOverlapPending = null;
+            closeSaveOverlapConfirmModal();
+          }
+        });
+      }
+      document.addEventListener('keydown', function(e) {
+        if (e.key !== 'Escape') return;
+        if (saveOverlapConfirmModal && !saveOverlapConfirmModal.classList.contains('hidden')) {
+          e.preventDefault();
+          saveOverlapPending = null;
+          closeSaveOverlapConfirmModal();
+        }
       });
 
       // ========== 上传来源选择模态框 ==========

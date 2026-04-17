@@ -899,7 +899,6 @@
           }
 
           var isPublished = t.publishStatus === 'published';
-          var timingLabel = isPublished ? getPublishedTimingEffectLabel(t) : null;
           var editLink = '<a href="screensaver-edit.html?id=' + encodeURIComponent(t.id) + '" class="block px-3 py-2 text-sm hover:bg-gray-50">编辑</a>';
           var deleteBtn = '<button type="button" class="delete-btn block w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-red-600">删除</button>';
           var unpublishBtn = '<button type="button" class="unpublish-btn block w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-gray-800" data-theme-id="' + escapeHtml(t.id) + '">下架</button>';
@@ -908,12 +907,11 @@
           var dropdownInner = '';
           if (!isPublished) {
             dropdownInner = publishBtn + editLink + deleteBtn;
-          } else if (timingLabel === '生效中') {
+          } else if (shelfStatus.text === '已上架') {
+            /** 只要上架状态为已上架，菜单仅允许下架 */
             dropdownInner = unpublishBtn;
-          } else if (timingLabel === '待生效') {
-            dropdownInner = unpublishBtn + editLink + deleteBtn;
-          } else if (timingLabel === '已失效') {
-            /** 已失效且上架状态为已下架：仅允许编辑、删除 */
+          } else if (shelfStatus.text === '已下架') {
+            /** 已下架：允许编辑、删除 */
             dropdownInner = editLink + deleteBtn;
           } else {
             dropdownInner = unpublishBtn + editLink + deleteBtn;
@@ -1432,19 +1430,22 @@
         });
       }
 
-      /** 渠道当前为「不展示」：含 `channelStatuses[].shelfStatus === 'off_shelf'`，或旧数据门店级 `store.shelfStatus` */
+      /** 渠道当前为「未展示」：优先按 displaySync 目标态显示；其次看 shelfStatus（含旧数据门店级） */
       function channelIsOffShelf(store, cs) {
         if (!cs) return false;
+        var ds = cs.displaySync;
+        if (ds && (ds.state === 'pending' || ds.state === 'failed')) {
+          if (ds.action === 'hide') return true;
+          if (ds.action === 'show') return false;
+        }
         if (cs.shelfStatus === 'off_shelf') return true;
         if (store.shelfStatus === 'off_shelf') return true;
         return false;
       }
 
-      /** 渠道当前为「展示中」（可点不展示）；执行中或等待重试时不可再点「不展示」 */
+      /** 渠道当前为「展示中」（可点不展示） */
       function channelIsOnShelf(store, cs) {
         if (!cs) return false;
-        var ds = cs.displaySync;
-        if (ds && ds.state === 'pending') return false;
         return !channelIsOffShelf(store, cs);
       }
 
@@ -1474,29 +1475,8 @@
         var rows = arr.map(function(cs) {
           var chLabel = cs.channel != null && cs.channel !== '' ? String(cs.channel) : '—';
           var chNameAttr = escapeHtml(chLabel);
-          var ds = cs.displaySync;
           var shelfHtml = '';
-          if (ds && ds.state === 'pending') {
-            var pendLabel = ds.action === 'hide'
-              ? '执行中：Kiosk 已收云端指令，正在执行「不展示」'
-              : '执行中：Kiosk 已收云端指令，正在执行「恢复展示」';
-            shelfHtml = '<div class="flex flex-col items-end gap-1 mt-1">' +
-              '<span class="text-xs text-amber-800 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded">' + escapeHtml(pendLabel) + '</span>' +
-              '<span class="text-[11px] text-gray-400">Kiosk 执行完成后回传云端；云端收到成功/失败后此处结束。若云端一直收不到回传，将一直保持本状态</span>' +
-              '</div>';
-          } else if (ds && ds.state === 'failed') {
-            var failAct = ds.action === 'show' ? '恢复展示' : '不展示';
-            var failLine = ds.reason === 'exec_failed'
-              ? '「' + failAct + '」执行失败：Kiosk 执行未成功，结果已到达云端'
-              : (ds.reason === 'timeout'
-                ? '「' + failAct + '」失败（历史：曾按超时判定，建议重试）'
-                : '「' + failAct + '」执行失败');
-            var retryAction = ds.action === 'show' ? 'show' : 'hide';
-            shelfHtml = '<div class="flex flex-col items-end gap-1 mt-1">' +
-              '<span class="text-xs text-red-700 bg-red-50 border border-red-100 px-1.5 py-0.5 rounded">' + escapeHtml(failLine) + '</span>' +
-              '<button type="button" data-channel-display-retry="' + escapeHtml(retryAction) + '" data-store-mid="' + midAttr + '" data-channel="' + chNameAttr + '" class="text-xs px-1.5 py-0.5 rounded-ant border border-primary text-primary hover:bg-blue-50">重试</button>' +
-              '</div>';
-          } else if (channelIsOffShelf(store, cs)) {
+          if (channelIsOffShelf(store, cs)) {
             shelfHtml = '<div class="flex flex-wrap items-center gap-1 mt-1 justify-end">' +
               '<span class="text-xs text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">未展示</span>' +
               '<button type="button" data-channel-action="on_shelf" data-store-mid="' + midAttr + '" data-channel="' + chNameAttr + '" class="text-xs px-1.5 py-0.5 rounded-ant border border-gray-300 hover:bg-gray-100 text-gray-700">恢复展示</button>' +
@@ -1520,17 +1500,14 @@
         var arr = store && Array.isArray(store.channelStatuses) ? store.channelStatuses : [];
         if (!arr.length) return '';
         var midAttr = escapeHtml(String(store.mid || ''));
-        var hasRunningState = arr.some(function(cs) {
-          return cs && cs.displaySync && (cs.displaySync.state === 'pending' || cs.displaySync.state === 'failed');
-        });
         var offCount = arr.filter(function(cs) { return channelIsOffShelf(store, cs); }).length;
         var allOff = offCount === arr.length;
         var allOn = offCount === 0;
         var buttons = [];
 
-        if (!hasRunningState && allOn) {
+        if (allOn) {
           buttons.push('<button type="button" data-store-batch-action="all_off_shelf" data-store-mid="' + midAttr + '" class="text-xs px-2 py-1 rounded-ant border border-gray-300 text-gray-700 hover:bg-gray-100">全渠道不展示</button>');
-        } else if (!hasRunningState && allOff) {
+        } else if (allOff) {
           buttons.push('<button type="button" data-store-batch-action="all_on_shelf" data-store-mid="' + midAttr + '" class="text-xs px-2 py-1 rounded-ant border border-primary text-primary hover:bg-blue-50">全渠道展示</button>');
         } else {
           buttons.push('<button type="button" data-store-batch-action="all_off_shelf" data-store-mid="' + midAttr + '" class="text-xs px-2 py-1 rounded-ant border border-gray-300 text-gray-700 hover:bg-gray-100">全渠道不展示</button>');

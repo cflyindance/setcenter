@@ -73,15 +73,6 @@
           </select>
           </div>
           <div class="flex flex-wrap items-center gap-2">
-            <span class="text-sm text-gray-600 whitespace-nowrap">生效状态</span>
-            <select id="filterEffectStatus" class="px-3 py-2 border border-gray-200 rounded-ant text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" aria-label="按生效状态筛选">
-            <option value="" selected>全部</option>
-            <option value="待生效">待生效</option>
-            <option value="生效中">生效中</option>
-            <option value="已失效">已失效</option>
-          </select>
-          </div>
-          <div class="flex flex-wrap items-center gap-2">
             <span class="text-sm text-gray-600 whitespace-nowrap">创建时间</span>
             <input type="date" id="filterStartDate" class="w-32 px-2 py-2 border border-gray-200 rounded-ant text-sm focus:outline-none focus:border-primary" title="创建开始日期" aria-label="创建开始日期" />
             <span class="text-gray-400">→</span>
@@ -135,14 +126,23 @@
         <button type="button" id="storesModalClose" class="w-8 h-8 rounded hover:bg-gray-100 flex items-center justify-center text-gray-500" aria-label="关闭">×</button>
       </div>
       <div class="flex items-center justify-between px-4 py-2 border-b border-gray-100 text-sm">
-        <div class="flex items-center gap-4">
+        <div class="flex flex-wrap items-center gap-4">
           <span class="text-gray-500">总计: <span id="storesTotal" class="font-medium text-gray-800">0</span></span>
+          <span class="text-gray-500">活动主题时间: <span id="storesThemeEffectTime" class="font-medium text-gray-800">--</span></span>
+          <span class="text-gray-500">门店生效时间: <span id="storesEffectTimeHint" class="font-medium text-gray-800">--</span></span>
         </div>
       </div>
       <div class="px-4 py-3 border-b border-gray-100 space-y-2 flex-shrink-0 bg-gray-50/50">
         <div class="flex flex-wrap gap-2 items-center">
           <label for="storesMidSearch" class="text-xs text-gray-500 whitespace-nowrap">MID</label>
           <input type="text" id="storesMidSearch" placeholder="输入 MID 搜索" class="min-w-[120px] flex-1 max-w-[200px] px-2 py-1.5 border border-gray-200 rounded-ant text-sm bg-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" autocomplete="off" aria-label="按 MID 搜索门店" />
+          <label for="storesEffectStatusFilter" class="text-xs text-gray-500 whitespace-nowrap">生效状态</label>
+          <select id="storesEffectStatusFilter" class="min-w-[100px] px-2 py-1.5 border border-gray-200 rounded-ant text-sm bg-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" aria-label="按门店生效状态筛选">
+            <option value="" selected>全部</option>
+            <option value="待生效">待生效</option>
+            <option value="生效中">生效中</option>
+            <option value="已失效">已失效</option>
+          </select>
           <button type="button" id="storesFilterReset" class="px-2.5 py-1.5 text-xs rounded-ant border border-gray-200 bg-white hover:bg-gray-50 text-gray-600">重置</button>
         </div>
         <p id="storesFilteredHint" class="text-xs text-gray-400 hidden" aria-live="polite"></p>
@@ -367,6 +367,8 @@
         return typeof item === 'string' ? item : (item.dataUrl || '');
       }
 
+      var DEFAULT_STORE_TIMEZONE = 'Asia/Shanghai';
+
       function parseDateTime(str) {
         if (!str || str === '--') return null;
         var normalized = str.replace(/\//g, '-');
@@ -374,9 +376,62 @@
         return isNaN(d.getTime()) ? null : d;
       }
 
+      function normalizeUtcTimestamp(v) {
+        if (v == null || v === '' || v === '--') return null;
+        if (typeof v === 'number') return isFinite(v) ? v : null;
+        var s = String(v).trim();
+        if (!s) return null;
+        if (/^\d+$/.test(s)) {
+          var n = Number(s);
+          return isFinite(n) ? n : null;
+        }
+        var d = new Date(s.replace(/\//g, '-'));
+        var ms = d.getTime();
+        return isNaN(ms) ? null : ms;
+      }
+
+      function computeEffectStatusByRange(startMs, endMs, nowMs) {
+        if (typeof nowMs !== 'number') nowMs = Date.now();
+        if (startMs == null || endMs == null) return null;
+        if (nowMs < startMs) return { text: '待生效', color: 'bg-yellow-100 text-yellow-700' };
+        if (nowMs > endMs) return { text: '已失效', color: 'bg-gray-200 text-gray-600' };
+        return { text: '生效中', color: 'bg-green-100 text-green-700' };
+      }
+
+      function getStoreTimezone(store) {
+        var tz = store && store.timezone ? String(store.timezone).trim() : '';
+        return tz || DEFAULT_STORE_TIMEZONE;
+      }
+
+      /** 兼容旧数据：优先 UTC 字段，其次 effectTime 字符串 */
+      function parseStoredThemeEffectRange(theme) {
+        if (!theme) return null;
+        var startUtc = normalizeUtcTimestamp(theme.effectStartUtc);
+        var endUtc = normalizeUtcTimestamp(theme.effectEndUtc);
+        if (startUtc != null && endUtc != null) {
+          return { start: startUtc, end: endUtc };
+        }
+
+        var et = theme.effectTime;
+        if (!et || et === '--') return null;
+        if (et === '立即生效') {
+          var dist = theme.distributeTime;
+          if (dist && dist !== '--') {
+            var d = new Date(String(dist).replace(/\//g, '-'));
+            if (!isNaN(d.getTime())) return { start: d.getTime(), end: Infinity };
+          }
+          return { start: Date.now(), end: Infinity };
+        }
+        var parts = String(et).split(' - ');
+        if (parts.length !== 2) return null;
+        var start = new Date(parts[0].trim().replace(/\//g, '-'));
+        var end = new Date(parts[1].trim().replace(/\//g, '-'));
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
+        return { start: start.getTime(), end: end.getTime() };
+      }
+
       function computeEffectStatus(effectTime) {
         if (!effectTime || effectTime === '--') return null;
-        var now = new Date();
         if (effectTime === '立即生效') {
           return { text: '生效中', color: 'bg-green-100 text-green-700' };
         }
@@ -385,15 +440,55 @@
         var startDt = parseDateTime(parts[0].trim());
         var endDt = parseDateTime(parts[1].trim());
         if (!startDt || !endDt) return null;
-        if (now < startDt) return { text: '待生效', color: 'bg-yellow-100 text-yellow-700' };
-        if (now > endDt) return { text: '已失效', color: 'bg-gray-200 text-gray-600' };
-        return { text: '生效中', color: 'bg-green-100 text-green-700' };
+        return computeEffectStatusByRange(startDt.getTime(), endDt.getTime(), Date.now());
+      }
+
+      function getThemeEffectStatus(theme) {
+        var range = parseStoredThemeEffectRange(theme);
+        if (range) return computeEffectStatusByRange(range.start, range.end, Date.now());
+        return theme ? computeEffectStatus(theme.effectTime) : null;
+      }
+
+      function formatDateTimeInTimezone(ms, timezone) {
+        if (ms == null || !isFinite(ms)) return '';
+        try {
+          var dtf = new Intl.DateTimeFormat('zh-CN', {
+            timeZone: timezone,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+          });
+          return dtf.format(new Date(ms)).replace(/\//g, '-');
+        } catch (e) {
+          return new Date(ms).toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-');
+        }
+      }
+
+      function formatThemeEffectRangeForStore(theme, store) {
+        var range = parseStoredThemeEffectRange(theme);
+        if (!range) return theme && theme.effectTime ? String(theme.effectTime) : '--';
+        var tz = getStoreTimezone(store);
+        var startStr = formatDateTimeInTimezone(range.start, tz);
+        if (range.end === Infinity) return startStr ? (startStr + ' 起') : '--';
+        var endStr = formatDateTimeInTimezone(range.end, tz);
+        if (!startStr || !endStr) return '--';
+        return startStr + ' - ' + endStr;
+      }
+
+      function getThemeEffectDisplayText(theme) {
+        if (!theme) return '--';
+        if (theme.effectTime && theme.effectTime !== '--') return String(theme.effectTime);
+        return formatThemeEffectRangeForStore(theme, { timezone: DEFAULT_STORE_TIMEZONE });
       }
 
       /** 已上架且生效期已结束 → 展示为已下架 */
       function getPublishedTimingEffectLabel(theme) {
         if (!theme || theme.publishStatus !== 'published') return null;
-        var s = computeEffectStatus(theme.effectTime);
+        var s = getThemeEffectStatus(theme);
         return s ? s.text : null;
       }
 
@@ -416,53 +511,69 @@
         if (theme.publishStatus && theme.publishStatus !== 'published') {
           return { text: '待生效', color: 'bg-yellow-100 text-yellow-700' };
         }
-        return computeEffectStatus(theme.effectTime);
+        return getThemeEffectStatus(theme);
       }
 
       /** 生效时间窗已结束（已失效），用于关联门店详情只读 */
       function isThemeEffectExpired(theme) {
         if (!theme) return false;
-        var eff = computeEffectStatus(theme.effectTime);
+        var eff = getThemeEffectStatus(theme);
         return !!(eff && eff.text === '已失效');
       }
 
-      /** 仅「上架状态=已上架」且「生效状态=生效中」时，门店详情可按数据展示渠道并可操作；否则各渠道只读为不展示 */
-      function isStoreDetailChannelUiOperable(theme) {
+      function getStoreEffectStatus(theme, store) {
+        // 门店时区用于本地化展示；状态按统一 UTC 时刻计算。
+        getStoreTimezone(store);
+        if (!theme) return null;
+        var shelf = getListShelfStatus(theme);
+        if (shelf.text === '待上架') {
+          return { text: '待生效', color: 'bg-yellow-100 text-yellow-700' };
+        }
+        if (shelf.text === '已下架') {
+          return { text: '已失效', color: 'bg-gray-200 text-gray-600' };
+        }
+        return getThemeEffectStatus(theme);
+      }
+
+      function getStoreEffectFilterOptionsByTheme(theme) {
+        var shelf = getListShelfStatus(theme);
+        if (shelf.text === '待上架') {
+          return ['', '待生效'];
+        }
+        if (shelf.text === '已下架') {
+          return ['', '已失效'];
+        }
+        return ['', '待生效', '生效中', '已失效'];
+      }
+
+      function renderStoresEffectStatusFilter(theme) {
+        if (!storesEffectStatusFilterEl) return;
+        var options = getStoreEffectFilterOptionsByTheme(theme);
+        var current = storesEffectStatusFilterEl.value || '';
+        var labels = { '': '全部', '待生效': '待生效', '生效中': '生效中', '已失效': '已失效' };
+        storesEffectStatusFilterEl.innerHTML = options.map(function(v) {
+          return '<option value="' + escapeHtml(v) + '">' + escapeHtml(labels[v] || v) + '</option>';
+        }).join('');
+        storesEffectStatusFilterEl.value = options.indexOf(current) >= 0 ? current : '';
+      }
+
+      /** 仅「上架状态=已上架」且门店维度生效状态=生效中时，详情渠道可操作 */
+      function isStoreDetailChannelUiOperable(theme, store) {
         if (!theme) return false;
         var shelf = getListShelfStatus(theme);
-        var eff = getListEffectStatus(theme);
+        var eff = getStoreEffectStatus(theme, store);
         return shelf.text === '已上架' && eff && eff.text === '生效中';
       }
 
-      function getStoreDetailLockedHint(theme) {
+      function getStoreDetailLockedHint(theme, store) {
         if (!theme) return '';
         if (isThemeEffectExpired(theme)) return '活动已失效';
         var shelf = getListShelfStatus(theme);
-        var eff = getListEffectStatus(theme);
+        var eff = getStoreEffectStatus(theme, store);
         if (shelf.text === '待上架') return '主题待上架';
         if (eff && eff.text === '待生效') return '活动待生效';
         if (shelf.text === '已下架') return '主题已下架';
         return '';
-      }
-
-      /** 与 effective-time.html 一致：解析主题的生效时间窗（含「立即生效」） */
-      function parseStoredThemeEffectRange(theme) {
-        var et = theme && theme.effectTime;
-        if (!et || et === '--') return null;
-        if (et === '立即生效') {
-          var dist = theme.distributeTime;
-          if (dist && dist !== '--') {
-            var d = new Date(String(dist).replace(/\//g, '-'));
-            if (!isNaN(d.getTime())) return { start: d.getTime(), end: Infinity };
-          }
-          return { start: Date.now(), end: Infinity };
-        }
-        var parts = String(et).split(' - ');
-        if (parts.length !== 2) return null;
-        var start = new Date(parts[0].trim().replace(/\//g, '-'));
-        var end = new Date(parts[1].trim().replace(/\//g, '-'));
-        if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
-        return { start: start.getTime(), end: end.getTime() };
       }
 
       function rangesOverlap(a, b) {
@@ -701,7 +812,6 @@
 
         var filterName = (document.getElementById('filterName').value || '').trim().toLowerCase();
         var filterShelfStatus = document.getElementById('filterShelfStatus').value;
-        var filterEffStatus = document.getElementById('filterEffectStatus').value;
         var filterStartDate = document.getElementById('filterStartDate').value;
         var filterEndDate = document.getElementById('filterEndDate').value;
 
@@ -711,9 +821,6 @@
           var shelfSt = getListShelfStatus(t);
           if (filterShelfStatus && (!shelfSt || shelfSt.text !== filterShelfStatus)) return false;
 
-          var effStatus = getListEffectStatus(t);
-          if (filterEffStatus && (!effStatus || effStatus.text !== filterEffStatus)) return false;
-          
           if (filterStartDate || filterEndDate) {
             var createDate = t.createTime ? parseDateTime(t.createTime) : null;
             if (!createDate) return false;
@@ -755,7 +862,7 @@
         }
 
         var html = pagedList.map(function(t) {
-          var effectStr = t.effectTime || '--';
+          var effectStr = getThemeEffectDisplayText(t);
           var distributeStr = t.distributeTime || '--';
           var distributeBlock = (distributeStr && distributeStr !== '--')
             ? '<div><span class="text-gray-400">下发时间</span><div class="text-gray-700 mt-0.5">' + escapeHtml(distributeStr) + '</div></div>'
@@ -763,13 +870,6 @@
           var channelsStr = (t.distributeChannels && t.distributeChannels.length) ? t.distributeChannels.join('、') : '--';
           var shelfStatus = getListShelfStatus(t);
           var shelfStatusBadge = '<span class="inline-block px-2 py-0.5 rounded text-xs font-medium ' + shelfStatus.color + '">' + escapeHtml(shelfStatus.text) + '</span>';
-          var effectStatus = getListEffectStatus(t);
-          var effStatusBadge;
-          if (effectStatus) {
-            effStatusBadge = '<span class="inline-block px-2 py-0.5 rounded text-xs font-medium ' + effectStatus.color + '">' + effectStatus.text + '</span>';
-          } else {
-            effStatusBadge = '<span class="text-gray-400">—</span>';
-          }
 
           var hasPortrait = t.portraitImages && t.portraitImages.length;
           var hasLandscape = t.landscapeImages && t.landscapeImages.length;
@@ -829,7 +929,6 @@
                 '<div><span class="text-gray-400">生效时间</span><div class="text-gray-700 mt-0.5">' + escapeHtml(effectStr) + '</div></div>' +
                 '<div><span class="text-gray-400">关联渠道</span><div class="text-gray-700 mt-0.5 break-words">' + escapeHtml(channelsStr) + '</div></div>' +
                 '<div><span class="text-gray-400">上架状态</span><div class="text-gray-700 mt-0.5">' + shelfStatusBadge + '</div></div>' +
-                '<div><span class="text-gray-400">生效状态</span><div class="text-gray-700 mt-0.5">' + effStatusBadge + '</div></div>' +
               '</div>' +
             '</div>' +
             storesSection +
@@ -1175,9 +1274,12 @@
       var storesModalClose = document.getElementById('storesModalClose');
       var storesListContainer = document.getElementById('storesListContainer');
       var storesTotalEl = document.getElementById('storesTotal');
+      var storesThemeEffectTimeEl = document.getElementById('storesThemeEffectTime');
+      var storesEffectTimeHintEl = document.getElementById('storesEffectTimeHint');
 
       var currentModalThemeId = null;
       var storesMidSearchEl = document.getElementById('storesMidSearch');
+      var storesEffectStatusFilterEl = document.getElementById('storesEffectStatusFilter');
       var storesFilterResetEl = document.getElementById('storesFilterReset');
       var storesFilteredHintEl = document.getElementById('storesFilteredHint');
 
@@ -1317,6 +1419,7 @@
         var theme = themes.filter(function(t) { return t.id === themeId; })[0];
         if (!theme || !theme.distributedStores) return;
         theme.distributedStores.forEach(function(store) {
+          if (!isStoreDetailChannelUiOperable(theme, store)) return;
           (store.channelStatuses || []).forEach(function(cs) {
             var ds = cs.displaySync;
             if (!ds || ds.state !== 'pending') return;
@@ -1346,8 +1449,8 @@
       function renderStoreChannelRows(store, theme) {
         var arr = store.channelStatuses;
         if (!arr || !arr.length) return '';
-        if (!isStoreDetailChannelUiOperable(theme)) {
-          var lockedHint = getStoreDetailLockedHint(theme);
+        if (!isStoreDetailChannelUiOperable(theme, store)) {
+          var lockedHint = getStoreDetailLockedHint(theme, store);
           var rowsLocked = arr.map(function(cs) {
             var chLabel = cs.channel != null && cs.channel !== '' ? String(cs.channel) : '—';
             var chNameAttr = escapeHtml(chLabel);
@@ -1411,7 +1514,7 @@
       }
 
       function renderStoreBatchActionRow(store, theme) {
-        if (!isStoreDetailChannelUiOperable(theme)) return '';
+        if (!isStoreDetailChannelUiOperable(theme, store)) return '';
         var midAttr = escapeHtml(String(store.mid || ''));
         return '<div class="mt-2 pt-2 border-t border-gray-100 flex flex-wrap items-center justify-end gap-2">' +
           '<button type="button" data-store-batch-action="all_off_shelf" data-store-mid="' + midAttr + '" class="text-xs px-2 py-1 rounded-ant border border-gray-300 text-gray-700 hover:bg-gray-100">全渠道不展示</button>' +
@@ -1428,21 +1531,34 @@
           if (storesFilteredHintEl) storesFilteredHintEl.classList.add('hidden');
           return;
         }
+        renderStoresEffectStatusFilter(theme);
         var stores = theme.distributedStores;
         var midQ = (storesMidSearchEl && storesMidSearchEl.value) ? storesMidSearchEl.value.trim().toLowerCase() : '';
+        var effQ = (storesEffectStatusFilterEl && storesEffectStatusFilterEl.value) ? storesEffectStatusFilterEl.value : '';
         var filtered = stores.filter(function(s) {
           if (midQ && String(s.mid || '').toLowerCase().indexOf(midQ) < 0) return false;
+          if (effQ) {
+            var storeStatus = getStoreEffectStatus(theme, s);
+            if (!storeStatus || storeStatus.text !== effQ) return false;
+          }
           return true;
         });
         storesListContainer.innerHTML = filtered.length
           ? filtered.map(function(store) {
               var channelBlock = renderStoreChannelRows(store, theme);
               var removeBlock = renderStoreBatchActionRow(store, theme);
+              var tz = getStoreTimezone(store);
+              var storeEffectStatus = getStoreEffectStatus(theme, store);
+              var storeEffectBadge = storeEffectStatus
+                ? '<span class="inline-block px-1.5 py-0.5 rounded text-[11px] font-medium ' + storeEffectStatus.color + '">' + escapeHtml(storeEffectStatus.text) + '</span>'
+                : '<span class="text-gray-400">—</span>';
               return '<div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 p-3 bg-gray-50 rounded-ant">' +
                 '<div class="flex-1 min-w-0">' +
                   '<div>' +
                     '<div class="font-medium text-gray-800">' + escapeHtml(store.name) + '</div>' +
                     '<div class="text-gray-500 text-xs mt-0.5">MID: ' + escapeHtml(store.mid) + '</div>' +
+                    '<div class="text-gray-500 text-xs mt-0.5">时区: ' + escapeHtml(tz) + '</div>' +
+                    '<div class="text-gray-500 text-xs mt-0.5">门店生效状态: ' + storeEffectBadge + '</div>' +
                   '</div>' +
                   channelBlock +
                   removeBlock +
@@ -1451,7 +1567,7 @@
             }).join('')
           : '<p class="text-center text-sm text-gray-500 py-8 px-2">无匹配门店，请调整 MID 关键词</p>';
         if (storesFilteredHintEl) {
-          if (filtered.length < stores.length || midQ) {
+          if (filtered.length < stores.length || midQ || effQ) {
             storesFilteredHintEl.textContent = '当前显示 ' + filtered.length + ' / ' + stores.length + ' 家门店';
             storesFilteredHintEl.classList.remove('hidden');
           } else {
@@ -1466,10 +1582,17 @@
         if (!theme || !theme.distributedStores) return;
         currentModalThemeId = themeId;
         if (storesMidSearchEl) storesMidSearchEl.value = '';
+        if (storesEffectStatusFilterEl) storesEffectStatusFilterEl.value = '';
         var stores = theme.distributedStores;
         storesTotalEl.textContent = stores.length;
+        if (storesThemeEffectTimeEl) {
+          storesThemeEffectTimeEl.textContent = getThemeEffectDisplayText(theme);
+        }
+        if (storesEffectTimeHintEl) {
+          storesEffectTimeHintEl.textContent = stores.length ? '按各门店时区展示' : '--';
+        }
         renderStoresModalList();
-        if (theme && isStoreDetailChannelUiOperable(theme)) {
+        if (theme && stores.some(function(s) { return isStoreDetailChannelUiOperable(theme, s); })) {
           resumePendingChannelDisplayOps(themeId);
         }
         storesModal.classList.remove('hidden');
@@ -1481,9 +1604,15 @@
           if (storesModal.classList.contains('flex')) renderStoresModalList();
         });
       }
+      if (storesEffectStatusFilterEl) {
+        storesEffectStatusFilterEl.addEventListener('change', function() {
+          if (storesModal.classList.contains('flex')) renderStoresModalList();
+        });
+      }
       if (storesFilterResetEl) {
         storesFilterResetEl.addEventListener('click', function() {
           if (storesMidSearchEl) storesMidSearchEl.value = '';
+          if (storesEffectStatusFilterEl) storesEffectStatusFilterEl.value = '';
           renderStoresModalList();
         });
       }
@@ -1495,6 +1624,7 @@
         if (!theme || !theme.distributedStores) return false;
         var store = theme.distributedStores.find(function(s) { return String(s.mid) === String(mid); });
         if (!store) return false;
+        if (!isStoreDetailChannelUiOperable(theme, store)) return false;
         var arr = store.channelStatuses || [];
         if (!arr.length) return false;
 
@@ -1520,8 +1650,6 @@
 
       storesListContainer.addEventListener('click', function(e) {
         if (!storesModal.classList.contains('flex')) return;
-        var guardTheme = getThemes().find(function(t) { return t.id === currentModalThemeId; });
-        if (guardTheme && !isStoreDetailChannelUiOperable(guardTheme)) return;
         var chRetry = e.target.closest('[data-channel-display-retry]');
         if (chRetry) {
           e.stopPropagation();
@@ -1534,6 +1662,7 @@
           if (!themeR || !themeR.distributedStores) return;
           var storeR = themeR.distributedStores.find(function(s) { return String(s.mid) === String(rMid); });
           if (!storeR) return;
+          if (!isStoreDetailChannelUiOperable(themeR, storeR)) return;
           var csR = (storeR.channelStatuses || []).filter(function(c) { return String(c.channel || '') === String(rCh); })[0];
           if (!csR || !csR.displaySync || csR.displaySync.state !== 'failed' || csR.displaySync.action !== rAct) return;
           csR.displaySync = { state: 'pending', action: rAct, startedAt: Date.now() };
@@ -1555,6 +1684,7 @@
           if (!themeCh || !themeCh.distributedStores) return;
           var storeCh = themeCh.distributedStores.find(function(s) { return String(s.mid) === String(midCh); });
           if (!storeCh) return;
+          if (!isStoreDetailChannelUiOperable(themeCh, storeCh)) return;
           var arrCh = storeCh.channelStatuses || [];
           var cs = arrCh.filter(function(c) { return String(c.channel || '') === String(chName); })[0];
           if (!cs) return;
@@ -1698,11 +1828,6 @@
         render();
       });
 
-      document.getElementById('filterEffectStatus').addEventListener('change', function() {
-        currentPage = 1;
-        render();
-      });
-
       document.getElementById('filterStartDate').addEventListener('change', function() {
         currentPage = 1;
         render();
@@ -1716,7 +1841,6 @@
       document.getElementById('filterResetBtn').addEventListener('click', function() {
         document.getElementById('filterName').value = '';
         document.getElementById('filterShelfStatus').value = '';
-        document.getElementById('filterEffectStatus').value = '';
         document.getElementById('filterStartDate').value = '';
         document.getElementById('filterEndDate').value = '';
         currentPage = 1;

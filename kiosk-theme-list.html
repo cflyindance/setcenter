@@ -125,9 +125,11 @@
         <h3 class="font-semibold text-gray-800">关联门店详情</h3>
         <button type="button" id="storesModalClose" class="w-8 h-8 rounded hover:bg-gray-100 flex items-center justify-center text-gray-500" aria-label="关闭">×</button>
       </div>
-      <div class="flex items-center justify-between px-4 py-2 border-b border-gray-100 text-sm">
-        <div class="flex flex-wrap items-center gap-4">
+      <div class="px-4 py-2 border-b border-gray-100 text-sm space-y-1">
+        <div class="flex items-center gap-4">
           <span class="text-gray-500">总计: <span id="storesTotal" class="font-medium text-gray-800">0</span></span>
+        </div>
+        <div class="flex flex-wrap items-center gap-4">
           <span class="text-gray-500">活动主题时间: <span id="storesThemeEffectTime" class="font-medium text-gray-800">--</span></span>
           <span class="text-gray-500">门店生效时间: <span id="storesEffectTimeHint" class="font-medium text-gray-800">--</span></span>
         </div>
@@ -1438,7 +1440,7 @@
         return false;
       }
 
-      /** 渠道当前为「已展示」（可点不展示）；执行中或等待重试时不可再点「不展示」 */
+      /** 渠道当前为「展示中」（可点不展示）；执行中或等待重试时不可再点「不展示」 */
       function channelIsOnShelf(store, cs) {
         if (!cs) return false;
         var ds = cs.displaySync;
@@ -1501,7 +1503,7 @@
               '</div>';
           } else {
             shelfHtml = '<div class="flex flex-wrap items-center gap-1 mt-1 justify-end">' +
-              '<span class="text-xs text-green-700 bg-green-50 px-1.5 py-0.5 rounded border border-green-100">已展示</span>' +
+              '<span class="text-xs text-green-700 bg-green-50 px-1.5 py-0.5 rounded border border-green-100">展示中</span>' +
               '<button type="button" data-channel-action="off_shelf" data-store-mid="' + midAttr + '" data-channel="' + chNameAttr + '" class="text-xs px-1.5 py-0.5 rounded-ant border border-gray-300 hover:bg-gray-100 text-gray-700">不展示</button>' +
               '</div>';
           }
@@ -1515,11 +1517,27 @@
 
       function renderStoreBatchActionRow(store, theme) {
         if (!isStoreDetailChannelUiOperable(theme, store)) return '';
+        var arr = store && Array.isArray(store.channelStatuses) ? store.channelStatuses : [];
+        if (!arr.length) return '';
         var midAttr = escapeHtml(String(store.mid || ''));
-        return '<div class="mt-2 pt-2 border-t border-gray-100 flex flex-wrap items-center justify-end gap-2">' +
-          '<button type="button" data-store-batch-action="all_off_shelf" data-store-mid="' + midAttr + '" class="text-xs px-2 py-1 rounded-ant border border-gray-300 text-gray-700 hover:bg-gray-100">全渠道不展示</button>' +
-          '<button type="button" data-store-batch-action="all_on_shelf" data-store-mid="' + midAttr + '" class="text-xs px-2 py-1 rounded-ant border border-primary text-primary hover:bg-blue-50">全渠道展示</button>' +
-          '</div>';
+        var hasRunningState = arr.some(function(cs) {
+          return cs && cs.displaySync && (cs.displaySync.state === 'pending' || cs.displaySync.state === 'failed');
+        });
+        var offCount = arr.filter(function(cs) { return channelIsOffShelf(store, cs); }).length;
+        var allOff = offCount === arr.length;
+        var allOn = offCount === 0;
+        var buttons = [];
+
+        if (!hasRunningState && allOn) {
+          buttons.push('<button type="button" data-store-batch-action="all_off_shelf" data-store-mid="' + midAttr + '" class="text-xs px-2 py-1 rounded-ant border border-gray-300 text-gray-700 hover:bg-gray-100">全渠道不展示</button>');
+        } else if (!hasRunningState && allOff) {
+          buttons.push('<button type="button" data-store-batch-action="all_on_shelf" data-store-mid="' + midAttr + '" class="text-xs px-2 py-1 rounded-ant border border-primary text-primary hover:bg-blue-50">全渠道展示</button>');
+        } else {
+          buttons.push('<button type="button" data-store-batch-action="all_off_shelf" data-store-mid="' + midAttr + '" class="text-xs px-2 py-1 rounded-ant border border-gray-300 text-gray-700 hover:bg-gray-100">全渠道不展示</button>');
+          buttons.push('<button type="button" data-store-batch-action="all_on_shelf" data-store-mid="' + midAttr + '" class="text-xs px-2 py-1 rounded-ant border border-primary text-primary hover:bg-blue-50">全渠道展示</button>');
+        }
+
+        return '<div class="mt-2 pt-2 border-t border-gray-100 flex flex-wrap items-center justify-end gap-2">' + buttons.join('') + '</div>';
       }
 
       function renderStoresModalList() {

@@ -8,52 +8,27 @@
   <link rel="stylesheet" href="assets/common.css" />
   <script src="assets/toast.js"></script>
   <script src="assets/kiosk-theme-media-idb.js"></script>
-  <script src="assets/kiosk-theme-overlap.js"></script>
   <script>
     tailwind.config = { theme: { extend: { colors: { primary: '#1677ff', 'sidebar-bg': '#fafafa', 'sidebar-active': '#e6f4ff' }, borderRadius: { ant: '6px' } } } };
   </script>
 </head>
 <body class="bg-white text-gray-900 antialiased">
-  <div class="app-layout flex min-h-screen">
-    <aside class="sidebar flex-shrink-0 flex flex-col w-60">
-      <div class="p-4 border-b border-gray-100 flex items-center gap-2">
-        <div class="w-8 h-8 rounded bg-amber-400 flex items-center justify-center text-white font-bold">M</div>
-        <span class="font-medium">MenuSifu</span>
-        <div class="ml-auto flex gap-1">
-          <button type="button" class="p-1 rounded hover:bg-gray-100" aria-label="文档">📄</button>
-          <button type="button" class="p-1 rounded hover:bg-gray-100" aria-label="全屏">⊞</button>
-        </div>
-      </div>
-      <nav class="flex-1 p-3 space-y-1 overflow-auto">
-        <a href="material.html" class="menu-item px-3 py-2 text-gray-600 flex items-center justify-between rounded-ant hover:bg-gray-100"><span>图片素材</span></a>
-        <div class="nav-group">
-          <div class="nav-group-title menu-item px-3 py-2 text-gray-600 flex items-center justify-between cursor-pointer hover:bg-gray-100 rounded-ant" onclick="this.parentElement.classList.toggle('collapsed')">
-            <span>营销中心</span>
-            <span class="nav-arrow text-xs transition-transform">⌄</span>
-          </div>
-          <div class="nav-group-items pl-3 space-y-0.5">
-            <a href="kiosk-theme-list.html" class="menu-item active px-3 py-2 flex items-center rounded-ant bg-sidebar-active text-primary font-medium">屏保</a>
-          </div>
-        </div>
-      </nav>
-      <div class="p-3 border-t border-gray-100 flex items-center gap-2">
-        <button type="button" class="p-1.5 rounded hover:bg-gray-100">📄</button>
-        <span class="w-px h-4 bg-gray-200"></span>
-        <button type="button" class="p-1.5 rounded hover:bg-gray-100">👤</button>
-        <a href="#" class="flex-1 flex items-center justify-between text-gray-600 text-sm"><span>M's Coffee</span><span>→</span></a>
-      </div>
-    </aside>
-    <main class="main-content flex-1 flex flex-col min-w-0">
-      <header class="flex items-center justify-between pb-4 mb-4 border-b-2 border-primary">
-        <div class="flex items-center gap-3">
-          <a href="kiosk-theme-list.html" class="p-2 rounded hover:bg-gray-100 text-gray-600" aria-label="返回">←</a>
-          <h1 class="text-lg font-semibold">编辑主题</h1>
-        </div>
+  <div class="min-h-screen flex flex-col">
+    <!-- 与新建屏保一致：顶栏 + 步骤进度 -->
+    <header class="flex-shrink-0 border-b border-gray-200 bg-white">
+      <div class="flex items-center justify-between px-4 py-3">
         <div class="flex items-center gap-2">
-          <button type="button" id="editNextStepBtn" class="px-4 py-2 rounded-ant bg-primary text-white hover:bg-blue-600">下一步</button>
+          <a href="kiosk-theme-list.html" class="p-2 rounded hover:bg-gray-100 text-gray-600" aria-label="返回">←</a>
+          <h1 class="text-base font-semibold">编辑主题</h1>
         </div>
-      </header>
-      <form id="editForm" class="max-w-3xl space-y-8">
+        <button type="button" id="editNextStepBtn" class="px-4 py-2 rounded-ant border border-primary text-primary text-sm hover:bg-blue-50">选择门店</button>
+      </div>
+      <div class="step-progress w-full">
+        <div class="step-progress-inner" style="width: 25%"></div>
+      </div>
+    </header>
+    <main class="flex-1 min-h-0 overflow-auto">
+      <form id="editForm" class="p-6 w-full max-w-4xl mx-auto space-y-8">
         <input type="hidden" id="editThemeId" name="id" value="" />
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-2">主题名称</label>
@@ -112,19 +87,6 @@
         </div>
       </form>
     </main>
-  </div>
-  <!-- 保存：与已生效主题时间重叠确认 -->
-  <div id="saveOverlapConfirmModal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/50 p-4" aria-hidden="true">
-    <div class="bg-white rounded-lg shadow-xl w-full max-w-sm" role="dialog" aria-modal="true" aria-labelledby="saveOverlapConfirmTitle">
-      <div class="px-4 py-3 border-b border-gray-200">
-        <h3 id="saveOverlapConfirmTitle" class="font-semibold text-gray-800">提示</h3>
-      </div>
-      <p id="saveOverlapConfirmText" class="px-4 py-4 text-sm text-gray-600 leading-relaxed whitespace-pre-line"></p>
-      <div class="px-4 py-3 border-t border-gray-100 flex justify-end gap-2">
-        <button type="button" id="saveOverlapConfirmCancel" class="px-4 py-2 rounded-ant border border-gray-200 text-sm text-gray-700 hover:bg-gray-50">取消</button>
-        <button type="button" id="saveOverlapConfirmOk" class="px-4 py-2 rounded-ant bg-primary text-white text-sm hover:bg-blue-600">确定保存</button>
-      </div>
-    </div>
   </div>
   <!-- 上传来源选择模态框 -->
   <div id="uploadSourceModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50">
@@ -813,35 +775,6 @@
         });
       }
 
-      var saveOverlapConfirmModal = document.getElementById('saveOverlapConfirmModal');
-      var saveOverlapConfirmText = document.getElementById('saveOverlapConfirmText');
-      var saveOverlapPending = null;
-
-      function openSaveOverlapConfirm(onConfirm, conflicts) {
-        saveOverlapPending = onConfirm;
-        if (saveOverlapConfirmText && window.KioskThemeOverlap && typeof KioskThemeOverlap.formatOverlapSaveConfirmText === 'function') {
-          saveOverlapConfirmText.textContent = KioskThemeOverlap.formatOverlapSaveConfirmText(conflicts || []);
-        } else if (saveOverlapConfirmText && window.KioskThemeOverlap) {
-          saveOverlapConfirmText.textContent = KioskThemeOverlap.CONFIRM_MESSAGE;
-        }
-        if (!saveOverlapConfirmModal) {
-          if (typeof onConfirm === 'function') onConfirm();
-          return;
-        }
-        saveOverlapConfirmModal.classList.remove('hidden');
-        saveOverlapConfirmModal.classList.add('flex');
-        saveOverlapConfirmModal.setAttribute('aria-hidden', 'false');
-        var okBtn = document.getElementById('saveOverlapConfirmOk');
-        if (okBtn) okBtn.focus();
-      }
-
-      function closeSaveOverlapConfirmModal() {
-        if (!saveOverlapConfirmModal) return;
-        saveOverlapConfirmModal.classList.add('hidden');
-        saveOverlapConfirmModal.classList.remove('flex');
-        saveOverlapConfirmModal.setAttribute('aria-hidden', 'true');
-      }
-
       function saveEditedThemeAndRedirect(redirectUrl, opts) {
         opts = opts || {};
         var saveAsDraft = !!opts.saveAsDraft;
@@ -865,7 +798,6 @@
           Toast.warning('请至少上传一个竖版或横版的屏保素材');
           return;
         }
-        var baseForOverlap = getThemes().filter(function(t) { return t.id === id; })[0] || null;
 
         function runPersistEditedThemeAndRedirect() {
           var portraitPromises = portraitList.map(function(item) {
@@ -909,13 +841,6 @@
           });
         }
 
-        if (window.KioskThemeOverlap) {
-          var ov = KioskThemeOverlap.findActivePublishedOverlaps(id, baseForOverlap);
-          if (ov.conflicts && ov.conflicts.length) {
-            openSaveOverlapConfirm(runPersistEditedThemeAndRedirect, ov.conflicts);
-            return;
-          }
-        }
         runPersistEditedThemeAndRedirect();
       }
 
@@ -925,33 +850,6 @@
 
       document.getElementById('editNextStepBtn').addEventListener('click', function() {
         saveEditedThemeAndRedirect('store-select.html?themeId=' + encodeURIComponent(id) + '&from=edit', { saveAsDraft: true });
-      });
-
-      document.getElementById('saveOverlapConfirmOk').addEventListener('click', function() {
-        var fn = saveOverlapPending;
-        saveOverlapPending = null;
-        closeSaveOverlapConfirmModal();
-        if (typeof fn === 'function') fn();
-      });
-      document.getElementById('saveOverlapConfirmCancel').addEventListener('click', function() {
-        saveOverlapPending = null;
-        closeSaveOverlapConfirmModal();
-      });
-      if (saveOverlapConfirmModal) {
-        saveOverlapConfirmModal.addEventListener('click', function(e) {
-          if (e.target === saveOverlapConfirmModal) {
-            saveOverlapPending = null;
-            closeSaveOverlapConfirmModal();
-          }
-        });
-      }
-      document.addEventListener('keydown', function(e) {
-        if (e.key !== 'Escape') return;
-        if (saveOverlapConfirmModal && !saveOverlapConfirmModal.classList.contains('hidden')) {
-          e.preventDefault();
-          saveOverlapPending = null;
-          closeSaveOverlapConfirmModal();
-        }
       });
     })();
   </script>

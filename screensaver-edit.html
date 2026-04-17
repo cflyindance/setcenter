@@ -18,7 +18,7 @@
     <header class="flex-shrink-0 border-b border-gray-200 bg-white">
       <div class="flex items-center justify-between px-4 py-3">
         <div class="flex items-center gap-2">
-          <a href="kiosk-theme-list.html" class="p-2 rounded hover:bg-gray-100 text-gray-600" aria-label="返回">←</a>
+          <button type="button" id="editBackBtn" class="p-2 rounded hover:bg-gray-100 text-gray-600" aria-label="返回">←</button>
           <h1 class="text-base font-semibold">编辑主题</h1>
         </div>
         <button type="button" id="editNextStepBtn" class="px-4 py-2 rounded-ant border border-primary text-primary text-sm hover:bg-blue-50">选择门店</button>
@@ -87,6 +87,19 @@
         </div>
       </form>
     </main>
+  </div>
+  <!-- 编辑返回列表确认 -->
+  <div id="editBackConfirmModal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/50 p-4" aria-hidden="true">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-sm" role="dialog" aria-modal="true" aria-labelledby="editBackConfirmTitle">
+      <div class="px-4 py-3 border-b border-gray-200">
+        <h3 id="editBackConfirmTitle" class="font-semibold text-gray-800">返回提示</h3>
+      </div>
+      <p class="px-4 py-4 text-sm text-gray-600 leading-relaxed">确定返回屏保列表吗？当前编辑内容将不会保存。</p>
+      <div class="px-4 py-3 border-t border-gray-100 flex justify-end gap-2">
+        <button type="button" id="editBackConfirmCancel" class="px-4 py-2 rounded-ant border border-gray-200 text-sm text-gray-700 hover:bg-gray-50">取消</button>
+        <button type="button" id="editBackConfirmOk" class="px-4 py-2 rounded-ant bg-primary text-white text-sm hover:bg-blue-600">确定返回</button>
+      </div>
+    </div>
   </div>
   <!-- 上传来源选择模态框 -->
   <div id="uploadSourceModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50">
@@ -188,6 +201,30 @@
       if (!theme) {
         window.location.href = 'kiosk-theme-list.html';
         throw new Error('theme not found');
+      }
+
+      var editBackBtn = document.getElementById('editBackBtn');
+      var editBackConfirmModal = document.getElementById('editBackConfirmModal');
+      var editBackConfirmOk = document.getElementById('editBackConfirmOk');
+      var editBackConfirmCancel = document.getElementById('editBackConfirmCancel');
+
+      function openEditBackConfirmModal() {
+        if (!editBackConfirmModal) return;
+        editBackConfirmModal.classList.remove('hidden');
+        editBackConfirmModal.classList.add('flex');
+        editBackConfirmModal.setAttribute('aria-hidden', 'false');
+        if (editBackConfirmOk) editBackConfirmOk.focus();
+      }
+
+      function closeEditBackConfirmModal() {
+        if (!editBackConfirmModal) return;
+        editBackConfirmModal.classList.add('hidden');
+        editBackConfirmModal.classList.remove('flex');
+        editBackConfirmModal.setAttribute('aria-hidden', 'true');
+      }
+
+      function backToThemeListFromEdit() {
+        window.location.href = 'kiosk-theme-list.html';
       }
 
 
@@ -850,6 +887,33 @@
 
       document.getElementById('editNextStepBtn').addEventListener('click', function() {
         saveEditedThemeAndRedirect('store-select.html?themeId=' + encodeURIComponent(id) + '&from=edit', { saveAsDraft: true });
+      });
+
+      if (editBackBtn) {
+        editBackBtn.addEventListener('click', function() {
+          openEditBackConfirmModal();
+        });
+      }
+      if (editBackConfirmCancel) {
+        editBackConfirmCancel.addEventListener('click', closeEditBackConfirmModal);
+      }
+      if (editBackConfirmOk) {
+        editBackConfirmOk.addEventListener('click', function() {
+          closeEditBackConfirmModal();
+          backToThemeListFromEdit();
+        });
+      }
+      if (editBackConfirmModal) {
+        editBackConfirmModal.addEventListener('click', function(e) {
+          if (e.target === editBackConfirmModal) closeEditBackConfirmModal();
+        });
+      }
+      document.addEventListener('keydown', function(e) {
+        if (e.key !== 'Escape') return;
+        if (editBackConfirmModal && !editBackConfirmModal.classList.contains('hidden')) {
+          e.preventDefault();
+          closeEditBackConfirmModal();
+        }
       });
     })();
   </script>

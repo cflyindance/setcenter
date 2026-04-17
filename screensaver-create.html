@@ -104,19 +104,6 @@
       </form>
     </main>
   </div>
-  <!-- 返回列表：不保存新建 -->
-  <div id="createBackConfirmModal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/50 p-4" aria-hidden="true">
-    <div class="bg-white rounded-lg shadow-xl w-full max-w-sm" role="dialog" aria-modal="true" aria-labelledby="createBackConfirmTitle">
-      <div class="px-4 py-3 border-b border-gray-200">
-        <h3 id="createBackConfirmTitle" class="font-semibold text-gray-800">返回提示</h3>
-      </div>
-      <p class="px-4 py-4 text-sm text-gray-600 leading-relaxed">确定返回屏保列表吗？确定后将不保存本次新建内容。</p>
-      <div class="px-4 py-3 border-t border-gray-100 flex justify-end gap-2">
-        <button type="button" id="createBackConfirmCancel" class="px-4 py-2 rounded-ant border border-gray-200 text-sm text-gray-700 hover:bg-gray-50">取消</button>
-        <button type="button" id="createBackConfirmOk" class="px-4 py-2 rounded-ant bg-primary text-white text-sm hover:bg-blue-600">确定返回</button>
-      </div>
-    </div>
-  </div>
   <!-- 保存：与已生效主题时间重叠确认 -->
   <div id="saveOverlapConfirmModal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/50 p-4" aria-hidden="true">
     <div class="bg-white rounded-lg shadow-xl w-full max-w-sm" role="dialog" aria-modal="true" aria-labelledby="saveOverlapConfirmTitle">
@@ -971,19 +958,6 @@
         updateHints('landscape');
       }
 
-      var createBackConfirmModal = document.getElementById('createBackConfirmModal');
-      function openCreateBackConfirmModal() {
-        if (!createBackConfirmModal) return;
-        createBackConfirmModal.classList.remove('hidden');
-        createBackConfirmModal.classList.add('flex');
-        createBackConfirmModal.setAttribute('aria-hidden', 'false');
-      }
-      function closeCreateBackConfirmModal() {
-        if (!createBackConfirmModal) return;
-        createBackConfirmModal.classList.add('hidden');
-        createBackConfirmModal.classList.remove('flex');
-        createBackConfirmModal.setAttribute('aria-hidden', 'true');
-      }
       function abandonDraftAndGoToList() {
         if (createDraftThemeId) {
           var list = getThemes();
@@ -1008,18 +982,8 @@
       }
 
       document.getElementById('createBackBtn').addEventListener('click', function() {
-        openCreateBackConfirmModal();
-      });
-      document.getElementById('createBackConfirmCancel').addEventListener('click', closeCreateBackConfirmModal);
-      document.getElementById('createBackConfirmOk').addEventListener('click', function() {
-        closeCreateBackConfirmModal();
         abandonDraftAndGoToList();
       });
-      if (createBackConfirmModal) {
-        createBackConfirmModal.addEventListener('click', function(e) {
-          if (e.target === createBackConfirmModal) closeCreateBackConfirmModal();
-        });
-      }
 
       bootstrapCreatePage();
     })();

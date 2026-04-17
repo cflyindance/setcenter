@@ -182,13 +182,37 @@
       updateSelected();
     });
 
-    (function restoreStoresFromThemePrefs() {
+    (function restoreStoresFromPersistedState() {
       var params = new URLSearchParams(location.search);
       var tid = params.get('themeId');
       if (!tid) {
         try { tid = localStorage.getItem('current_theme_id_for_distribute') || ''; } catch (e) {}
       }
       if (!tid) return;
+
+      function applyMidSet(midSet) {
+        document.querySelectorAll('.store-checkbox').forEach(function(cb) {
+          var mid = cb.getAttribute('data-mid');
+          if (mid && midSet[String(mid)]) cb.checked = true;
+        });
+      }
+
+      var fromLocalStorage = false;
+      try {
+        var rawLs = localStorage.getItem('selected_stores_for_distribute');
+        var listLs = rawLs ? JSON.parse(rawLs) : [];
+        if (Array.isArray(listLs) && listLs.length) {
+          var setLs = {};
+          listLs.forEach(function(s) {
+            if (s && s.mid != null) setLs[String(s.mid)] = true;
+          });
+          applyMidSet(setLs);
+          fromLocalStorage = true;
+        }
+      } catch (eLs) {}
+
+      if (fromLocalStorage) return;
+
       try {
         var themes = JSON.parse(localStorage.getItem('kiosk_themes') || '[]');
         var th = themes.filter(function(t) { return t.id === tid; })[0];
@@ -198,10 +222,7 @@
         prefs.stores.forEach(function(s) {
           if (s && s.mid != null) midSet[String(s.mid)] = true;
         });
-        document.querySelectorAll('.store-checkbox').forEach(function(cb) {
-          var mid = cb.getAttribute('data-mid');
-          if (mid && midSet[String(mid)]) cb.checked = true;
-        });
+        applyMidSet(midSet);
         var restored = [].map.call(document.querySelectorAll('.store-checkbox:checked'), function(cb) {
           return { name: cb.getAttribute('data-name') || '', mid: cb.getAttribute('data-mid') || '' };
         });

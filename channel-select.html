@@ -66,7 +66,12 @@
       if (backToStore) {
         try {
           var tid = localStorage.getItem('current_theme_id_for_distribute') || '';
-          if (tid) backToStore.href = 'store-select.html?themeId=' + encodeURIComponent(tid);
+          var fromPage = new URLSearchParams(location.search).get('from') || '';
+          if (tid) {
+            var qs = '?themeId=' + encodeURIComponent(tid);
+            if (fromPage) qs += '&from=' + encodeURIComponent(fromPage);
+            backToStore.href = 'store-select.html' + qs;
+          }
         } catch (e) {}
       }
       var channelGrid = document.getElementById('channelGrid');
@@ -150,7 +155,8 @@
         e.preventDefault();
         var selected = getSelectedChannels();
         if (!selected.length) return;
-        window.location.href = 'effective-time.html';
+        var fromPage = new URLSearchParams(location.search).get('from') || '';
+        window.location.href = 'effective-time.html' + (fromPage ? ('?from=' + encodeURIComponent(fromPage)) : '');
       });
 
       renderChannels();

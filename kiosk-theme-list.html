@@ -157,6 +157,20 @@
       </div>
     </div>
   </div>
+  <!-- 上架拦截：与已上架主题在相同门店+渠道上生效时间重叠 -->
+  <div id="publishBlockModal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/50 p-4" aria-hidden="true">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md flex flex-col max-h-[85vh]" role="dialog" aria-modal="true" aria-labelledby="publishBlockTitle">
+      <div class="px-4 py-3 border-b border-gray-200 flex-shrink-0">
+        <h3 id="publishBlockTitle" class="font-semibold text-gray-800">无法上架</h3>
+      </div>
+      <div class="px-4 py-4 min-h-0 max-h-[50vh] overflow-y-auto overscroll-contain">
+        <p id="publishBlockMessage" class="text-sm text-gray-600 leading-relaxed whitespace-pre-line"></p>
+      </div>
+      <div class="px-4 py-3 border-t border-gray-100 flex justify-end flex-shrink-0">
+        <button type="button" id="publishBlockOk" class="px-4 py-2 rounded-ant bg-primary text-white text-sm hover:bg-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1">知道了</button>
+      </div>
+    </div>
+  </div>
   <script>
     (function() {
       var STORAGE_KEY = 'kiosk_themes';
@@ -251,6 +265,9 @@
       var deleteConfirmThemeName = document.getElementById('deleteConfirmThemeName');
       var deleteConfirmCancel = document.getElementById('deleteConfirmCancel');
       var deleteConfirmOk = document.getElementById('deleteConfirmOk');
+      var publishBlockModal = document.getElementById('publishBlockModal');
+      var publishBlockMessage = document.getElementById('publishBlockMessage');
+      var publishBlockOk = document.getElementById('publishBlockOk');
 
       function openDeleteConfirmModal() {
         if (!deleteConfirmModal) return;
@@ -266,6 +283,22 @@
         deleteConfirmModal.classList.add('hidden');
         deleteConfirmModal.classList.remove('flex');
         deleteConfirmModal.setAttribute('aria-hidden', 'true');
+      }
+
+      function openPublishBlockModal(message) {
+        if (publishBlockMessage) publishBlockMessage.textContent = message || '';
+        if (!publishBlockModal) return;
+        publishBlockModal.classList.remove('hidden');
+        publishBlockModal.classList.add('flex');
+        publishBlockModal.setAttribute('aria-hidden', 'false');
+        if (publishBlockOk) publishBlockOk.focus();
+      }
+
+      function closePublishBlockModal() {
+        if (!publishBlockModal) return;
+        publishBlockModal.classList.add('hidden');
+        publishBlockModal.classList.remove('flex');
+        publishBlockModal.setAttribute('aria-hidden', 'true');
       }
 
       function executeDeleteTheme() {
@@ -351,11 +384,22 @@
         return { text: '已生效', color: 'bg-green-100 text-green-700' };
       }
 
-      /** 上架状态：草稿/未发布为未上架，其余为已上架 */
+      /** 已上架且生效期已结束 → 展示为已下架 */
+      function getPublishedTimingEffectLabel(theme) {
+        if (!theme || theme.publishStatus !== 'published') return null;
+        var s = computeEffectStatus(theme.effectTime);
+        return s ? s.text : null;
+      }
+
+      /** 上架状态：草稿为未上架；已上架且已失效为已下架；已上架否则为已上架 */
       function getListShelfStatus(theme) {
         if (!theme) return { text: '—', color: 'bg-gray-100 text-gray-600' };
         if (theme.publishStatus === 'draft') {
           return { text: '未上架', color: 'bg-gray-100 text-gray-600' };
+        }
+        var timing = getPublishedTimingEffectLabel(theme);
+        if (timing === '已失效') {
+          return { text: '已下架', color: 'bg-amber-100 text-amber-800' };
         }
         return { text: '已上架', color: 'bg-green-100 text-green-700' };
       }
@@ -367,6 +411,214 @@
           return { text: '待生效', color: 'bg-yellow-100 text-yellow-700' };
         }
         return computeEffectStatus(theme.effectTime);
+      }
+
+      /** 与 effective-time.html 一致：解析主题的生效时间窗（含「立即生效」） */
+      function parseStoredThemeEffectRange(theme) {
+        var et = theme && theme.effectTime;
+        if (!et || et === '--') return null;
+        if (et === '立即生效') {
+          var dist = theme.distributeTime;
+          if (dist && dist !== '--') {
+            var d = new Date(String(dist).replace(/\//g, '-'));
+            if (!isNaN(d.getTime())) return { start: d.getTime(), end: Infinity };
+          }
+          return { start: Date.now(), end: Infinity };
+        }
+        var parts = String(et).split(' - ');
+        if (parts.length !== 2) return null;
+        var start = new Date(parts[0].trim().replace(/\//g, '-'));
+        var end = new Date(parts[1].trim().replace(/\//g, '-'));
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
+        return { start: start.getTime(), end: end.getTime() };
+      }
+
+      function rangesOverlap(a, b) {
+        if (!a || !b) return false;
+        return a.start < b.end && b.start < a.end;
+      }
+
+      function getThemeStoreChannelPairs(theme) {
+        var pairs = [];
+        var seen = {};
+        var stores = theme && theme.distributedStores ? theme.distributedStores : [];
+        stores.forEach(function(store) {
+          var mid = store && store.mid != null ? String(store.mid) : '';
+          var arr = store && Array.isArray(store.channelStatuses) ? store.channelStatuses : [];
+          arr.forEach(function(cs) {
+            var ch = cs && cs.channel != null ? String(cs.channel) : '';
+            if (!mid || !ch) return;
+            var key = mid + '\x1e' + ch;
+            if (seen[key]) return;
+            seen[key] = true;
+            pairs.push({ mid: mid, channel: ch });
+          });
+        });
+        return pairs;
+      }
+
+      function hasStoreChannelPair(theme, mid, channel) {
+        var m = String(mid);
+        var c = String(channel);
+        var stores = theme && theme.distributedStores ? theme.distributedStores : [];
+        for (var i = 0; i < stores.length; i++) {
+          var st = stores[i];
+          if (String(st.mid) !== m) continue;
+          var arr = st.channelStatuses || [];
+          for (var j = 0; j < arr.length; j++) {
+            if (String(arr[j].channel || '') === c) return true;
+          }
+        }
+        return false;
+      }
+
+      /** 上架前校验：与任意已上架主题在相同门店+相同渠道上生效时间是否重叠 */
+      function findShelfTimeConflictsForPublish(candidate, allThemes) {
+        var myRange = parseStoredThemeEffectRange(candidate);
+        if (!myRange) {
+          return {
+            kind: 'no_range',
+            message: '当前主题未配置有效的生效时间，无法上架。请先通过下发流程配置门店、渠道与生效时间。'
+          };
+        }
+        var myPairs = getThemeStoreChannelPairs(candidate);
+        if (!myPairs.length) {
+          return { kind: 'ok' };
+        }
+        var conflicts = [];
+        var seen = {};
+        for (var i = 0; i < allThemes.length; i++) {
+          var other = allThemes[i];
+          if (!other || other.id === candidate.id) continue;
+          if (other.publishStatus !== 'published') continue;
+          var otherRange = parseStoredThemeEffectRange(other);
+          if (!otherRange) continue;
+          if (!rangesOverlap(myRange, otherRange)) continue;
+          var tname = other.name ? String(other.name) : '未命名主题';
+          for (var p = 0; p < myPairs.length; p++) {
+            var pair = myPairs[p];
+            if (!hasStoreChannelPair(other, pair.mid, pair.channel)) continue;
+            var key = String(other.id) + '\x1e' + pair.mid + '\x1e' + pair.channel;
+            if (seen[key]) continue;
+            seen[key] = true;
+            conflicts.push({
+              themeId: other.id,
+              themeName: tname,
+              effectTime: other.effectTime,
+              distributeTime: other.distributeTime,
+              mid: pair.mid,
+              channel: pair.channel
+            });
+          }
+        }
+        if (!conflicts.length) return { kind: 'ok' };
+        return { kind: 'overlap', conflicts: conflicts };
+      }
+
+      function formatPublishOverlapMessage(conflicts, candidate) {
+        function overlapThemeTimeRangeLine(r) {
+          var et = r.effectTime;
+          if (!et || et === '--') return '生效时间段：—';
+          if (et === '立即生效') {
+            if (r.distributeTime && r.distributeTime !== '--') {
+              return '生效时间段：立即生效（记录时间 ' + r.distributeTime + '）';
+            }
+            return '生效时间段：立即生效';
+          }
+          return '生效时间段：' + et;
+        }
+        function lookupStoreName(mid) {
+          var stores = candidate && candidate.distributedStores ? candidate.distributedStores : [];
+          for (var i = 0; i < stores.length; i++) {
+            if (String(stores[i].mid) === String(mid)) {
+              return stores[i].name ? String(stores[i].name).trim() : '';
+            }
+          }
+          return '';
+        }
+
+        var enriched = conflicts.map(function(c) {
+          return {
+            themeId: c.themeId,
+            themeName: c.themeName,
+            effectTime: c.effectTime,
+            distributeTime: c.distributeTime,
+            mid: c.mid,
+            channel: c.channel,
+            storeName: lookupStoreName(c.mid)
+          };
+        });
+
+        var groupMap = {};
+        enriched.forEach(function(c) {
+          var gk = c.storeName ? ('name:' + c.storeName) : ('mid:' + c.mid);
+          if (!groupMap[gk]) groupMap[gk] = { storeName: c.storeName, rows: [] };
+          groupMap[gk].rows.push(c);
+        });
+
+        var gks = Object.keys(groupMap).sort(function(a, b) {
+          var A = groupMap[a];
+          var B = groupMap[b];
+          var an = A.storeName || '';
+          var bn = B.storeName || '';
+          if (an !== bn) return an.localeCompare(bn, 'zh-CN');
+          return a.localeCompare(b);
+        });
+
+        var globalSeen = {};
+        var globalThemes = [];
+        enriched.forEach(function(r) {
+          var id = r.themeId != null ? String(r.themeId) : '';
+          if (id) {
+            if (globalSeen[id]) return;
+            globalSeen[id] = true;
+          } else {
+            var fallback = r.themeName + '\x1e' + String(r.effectTime || '') + '\x1e' + r.mid + '\x1e' + r.channel;
+            if (globalSeen[fallback]) return;
+            globalSeen[fallback] = true;
+          }
+          globalThemes.push(r);
+        });
+        globalThemes.sort(function(a, b) {
+          return String(a.themeName).localeCompare(String(b.themeName), 'zh-CN');
+        });
+
+        var out = [];
+        out.push('在相同门店、相同渠道下，当前主题与已生效主题存在生效时间重叠，无法上架。');
+        out.push('');
+        if (globalThemes.length) {
+          out.push('冲突已生效主题：');
+          globalThemes.forEach(function(r) {
+            out.push('  · 「' + r.themeName + '」');
+            out.push('    ' + overlapThemeTimeRangeLine(r));
+          });
+          out.push('');
+        }
+
+        gks.forEach(function(gk) {
+          var g = groupMap[gk];
+          var mids = {};
+          g.rows.forEach(function(r) { mids[r.mid] = true; });
+          var midStr = Object.keys(mids).join('、');
+
+          var title;
+          if (g.storeName) {
+            title = '「' + g.storeName + '」（MID ' + midStr + '）';
+          } else {
+            title = '（MID ' + midStr + '）';
+          }
+          out.push(title);
+
+          var chanSet = {};
+          g.rows.forEach(function(r) { chanSet[r.channel] = true; });
+          var chSorted = Object.keys(chanSet).sort(function(x, y) {
+            return String(x).localeCompare(String(y), 'zh-CN');
+          });
+          out.push('关联渠道：' + chSorted.join('、'));
+          out.push('');
+        });
+
+        return out.join('\n').trim();
       }
 
       function render() {
@@ -509,13 +761,24 @@
           }
 
           var isPublished = t.publishStatus === 'published';
+          var timingLabel = isPublished ? getPublishedTimingEffectLabel(t) : null;
+          var editLink = '<a href="screensaver-edit.html?id=' + encodeURIComponent(t.id) + '" class="block px-3 py-2 text-sm hover:bg-gray-50">编辑</a>';
+          var deleteBtn = '<button type="button" class="delete-btn block w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-red-600">删除</button>';
+          var unpublishBtn = '<button type="button" class="unpublish-btn block w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-gray-800" data-theme-id="' + escapeHtml(t.id) + '">下架</button>';
+          var publishBtn = '<button type="button" class="publish-btn block w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-primary font-medium" data-theme-id="' + escapeHtml(t.id) + '">上架</button>';
+          var publishRelistBtn = '<button type="button" class="publish-btn publish-relist-btn block w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-primary font-medium" data-theme-id="' + escapeHtml(t.id) + '" data-relist="1">上架</button>';
+
           var dropdownInner = '';
           if (!isPublished) {
-            dropdownInner = '<button type="button" class="publish-btn block w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-primary font-medium" data-theme-id="' + escapeHtml(t.id) + '">上架</button>' +
-              '<a href="screensaver-edit.html?id=' + encodeURIComponent(t.id) + '" class="block px-3 py-2 text-sm hover:bg-gray-50">编辑</a>' +
-              '<button type="button" class="delete-btn block w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-red-600">删除</button>';
+            dropdownInner = publishBtn + editLink + deleteBtn;
+          } else if (timingLabel === '已生效') {
+            dropdownInner = unpublishBtn;
+          } else if (timingLabel === '待生效') {
+            dropdownInner = unpublishBtn + editLink + deleteBtn;
+          } else if (timingLabel === '已失效') {
+            dropdownInner = publishRelistBtn + editLink + deleteBtn;
           } else {
-            dropdownInner = '<button type="button" class="unpublish-btn block w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-gray-800" data-theme-id="' + escapeHtml(t.id) + '">下架</button>';
+            dropdownInner = unpublishBtn + editLink + deleteBtn;
           }
 
           return '<div class="screensaver-card border border-gray-100 p-4 flex gap-4" data-id="' + escapeHtml(t.id) + '">' +
@@ -575,9 +838,23 @@
             var id = this.getAttribute('data-theme-id');
             if (!id) return;
             container.querySelectorAll('.dropdown-menu').forEach(function(m) { m.classList.add('hidden'); });
+            if (this.getAttribute('data-relist') === '1') {
+              try { localStorage.setItem('current_theme_id_for_distribute', id); } catch (e) {}
+              window.location.href = 'store-select.html?themeId=' + encodeURIComponent(id) + '&from=edit';
+              return;
+            }
             var themes = getThemes();
             var th = themes.find(function(x) { return x.id === id; });
             if (!th) return;
+            var block = findShelfTimeConflictsForPublish(th, themes);
+            if (block.kind === 'no_range') {
+              openPublishBlockModal(block.message);
+              return;
+            }
+            if (block.kind === 'overlap') {
+              openPublishBlockModal(formatPublishOverlapMessage(block.conflicts, th));
+              return;
+            }
             th.publishStatus = 'published';
             saveThemes(themes);
             render();
@@ -1391,11 +1668,24 @@
           if (e.target === deleteConfirmModal) closeDeleteConfirmModal();
         });
       }
+      if (publishBlockOk) {
+        publishBlockOk.addEventListener('click', closePublishBlockModal);
+      }
+      if (publishBlockModal) {
+        publishBlockModal.addEventListener('click', function(e) {
+          if (e.target === publishBlockModal) closePublishBlockModal();
+        });
+      }
       document.addEventListener('keydown', function(e) {
-        if (!deleteConfirmModal || deleteConfirmModal.classList.contains('hidden')) return;
-        if (e.key === 'Escape') {
+        if (e.key !== 'Escape') return;
+        if (deleteConfirmModal && !deleteConfirmModal.classList.contains('hidden')) {
           e.preventDefault();
           closeDeleteConfirmModal();
+          return;
+        }
+        if (publishBlockModal && !publishBlockModal.classList.contains('hidden')) {
+          e.preventDefault();
+          closePublishBlockModal();
         }
       });
 

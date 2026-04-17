@@ -123,7 +123,13 @@
         if (from === 'edit' && themeId) {
           backBtn.href = 'screensaver-edit.html?id=' + encodeURIComponent(themeId);
         } else if (from === 'create') {
-          backBtn.href = 'screensaver-create.html';
+          var tidBack = themeId;
+          if (!tidBack) {
+            try { tidBack = localStorage.getItem('current_theme_id_for_distribute') || ''; } catch (eT) {}
+          }
+          backBtn.href = tidBack
+            ? ('screensaver-create.html?themeId=' + encodeURIComponent(tidBack) + '&from=store')
+            : 'screensaver-create.html';
         }
       }
     })();
@@ -216,7 +222,10 @@
       try {
         localStorage.setItem('selected_stores_for_distribute', JSON.stringify(stores));
       } catch (err) {}
-      window.location.href = 'channel-select.html';
+      var params = new URLSearchParams(location.search);
+      var fromQ = params.get('from') || '';
+      var chUrl = 'channel-select.html' + (fromQ ? ('?from=' + encodeURIComponent(fromQ)) : '');
+      window.location.href = chUrl;
     });
   </script>
 </body>

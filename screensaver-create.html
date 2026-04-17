@@ -47,7 +47,7 @@
       <!-- 页头 -->
       <header class="flex items-center justify-between pb-4 mb-4 border-b-2 border-primary">
         <div class="flex items-center gap-3">
-          <a href="kiosk-theme-list.html" class="p-2 rounded hover:bg-gray-100 text-gray-600" aria-label="返回">←</a>
+          <button type="button" id="createBackBtn" class="p-2 rounded hover:bg-gray-100 text-gray-600" aria-label="返回">←</button>
           <h1 class="text-lg font-semibold">新建屏保</h1>
         </div>
         <div class="flex items-center gap-2">
@@ -129,6 +129,19 @@
       </form>
     </main>
   </div>
+  <!-- 返回列表：不保存新建 -->
+  <div id="createBackConfirmModal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/50 p-4" aria-hidden="true">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-sm" role="dialog" aria-modal="true" aria-labelledby="createBackConfirmTitle">
+      <div class="px-4 py-3 border-b border-gray-200">
+        <h3 id="createBackConfirmTitle" class="font-semibold text-gray-800">返回提示</h3>
+      </div>
+      <p class="px-4 py-4 text-sm text-gray-600 leading-relaxed">确定返回屏保列表吗？确定后将不保存本次新建内容。</p>
+      <div class="px-4 py-3 border-t border-gray-100 flex justify-end gap-2">
+        <button type="button" id="createBackConfirmCancel" class="px-4 py-2 rounded-ant border border-gray-200 text-sm text-gray-700 hover:bg-gray-50">取消</button>
+        <button type="button" id="createBackConfirmOk" class="px-4 py-2 rounded-ant bg-primary text-white text-sm hover:bg-blue-600">确定返回</button>
+      </div>
+    </div>
+  </div>
   <!-- 上传来源选择模态框 -->
   <div id="uploadSourceModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50">
     <div class="bg-white rounded-lg shadow-xl w-full max-w-sm">
@@ -197,11 +210,69 @@
   </div>
   <script>
     (function() {
+      var STORAGE_KEY = 'kiosk_themes';
       var portraitList = [];
       var landscapeList = [];
       var currentUploadRole = null;
       var selectedMaterials = [];
       var currentMaterialCategory = null;
+      var createDraftThemeId = null;
+      var urlSearchParams = new URLSearchParams(location.search);
+
+      function getThemes() {
+        try {
+          return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        } catch (e) {
+          return [];
+        }
+      }
+
+      function saveThemes(list) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+      }
+
+      function buildListFromStoredMedia(images) {
+        if (!images || !images.length) return Promise.resolve([]);
+        var idb = window.KioskThemeMediaIdb;
+        return Promise.all(images.map(function(img) {
+          if (typeof img === 'object' && img.type === 'video' && img.mediaRef && idb && idb.supported()) {
+            return idb.get(img.mediaRef).then(function(blob) {
+              if (!blob) {
+                return { url: '', dataUrl: null, type: 'video', mediaRef: img.mediaRef };
+              }
+              var url = URL.createObjectURL(blob);
+              return { url: url, dataUrl: null, type: 'video', mediaRef: img.mediaRef };
+            });
+          }
+          var dataUrl = typeof img === 'string' ? img : (img.dataUrl || '');
+          var t = (typeof img === 'object' && img.type) ? img.type : 'image';
+          return Promise.resolve({ url: dataUrl, dataUrl: dataUrl, type: t || 'image' });
+        }));
+      }
+
+      function syncTypeRadiosFromLists() {
+        ['portrait', 'landscape'].forEach(function(role) {
+          var list = role === 'portrait' ? portraitList : landscapeList;
+          var isVideo = list.length > 0 && list[0].type === 'video';
+          var name = role === 'portrait' ? 'portraitType' : 'landscapeType';
+          document.querySelectorAll('input[name="' + name + '"]').forEach(function(r) {
+            r.checked = (r.value === 'video') === isVideo;
+          });
+        });
+      }
+
+      function collectVideoMediaRefs(theme) {
+        var refs = [];
+        function scan(arr) {
+          if (!arr) return;
+          arr.forEach(function(m) {
+            if (m && typeof m === 'object' && m.type === 'video' && m.mediaRef) refs.push(m.mediaRef);
+          });
+        }
+        scan(theme.portraitImages);
+        scan(theme.landscapeImages);
+        return refs;
+      }
 
       function getMediaType(role) {
         var radioName = role === 'portrait' ? 'portraitType' : 'landscapeType';
@@ -252,12 +323,13 @@
         var canDrag = list.length > 1;
         var html = '';
         list.forEach(function(item, index) {
+          var mediaSrc = item.url || item.dataUrl || '';
           var mediaHtml = '';
           if (item.type === 'video') {
-            mediaHtml = '<video src="' + item.url + '" class="w-full h-full object-cover muted" draggable="false"></video>' +
+            mediaHtml = '<video src="' + mediaSrc + '" class="w-full h-full object-cover muted" draggable="false"></video>' +
               '<div class="absolute inset-0 flex items-center justify-center pointer-events-none"><span class="w-8 h-8 bg-black/50 rounded-full flex items-center justify-center text-white text-xs">▶</span></div>';
           } else {
-            mediaHtml = '<img src="' + item.url + '" alt="预览" class="w-full h-full object-cover pointer-events-none" draggable="false" />';
+            mediaHtml = '<img src="' + mediaSrc + '" alt="预览" class="w-full h-full object-cover pointer-events-none" draggable="false" />';
           }
           var dragAttr = canDrag ? ' draggable="true"' : '';
           var dragClass = canDrag ? ' cursor-grab active:cursor-grabbing preview-item' : '';
@@ -374,13 +446,6 @@
         this.value = '';
       });
 
-      renderPreviews('portrait');
-      renderPreviews('landscape');
-      updateAccept('portrait');
-      updateAccept('landscape');
-      updateHints('portrait');
-      updateHints('landscape');
-
       document.querySelectorAll('input[name="portraitType"]').forEach(function(radio) {
         radio.addEventListener('change', function() {
           portraitList.forEach(function(item) { if (item.url) URL.revokeObjectURL(item.url); });
@@ -432,7 +497,12 @@
       }
 
       function processMedia(item, isPortrait) {
-        if (!item.file) return Promise.resolve({ dataUrl: item.url, type: item.type || 'image' });
+        if (item.type === 'video' && item.mediaRef && !item.file) {
+          return Promise.resolve({ type: 'video', mediaRef: item.mediaRef });
+        }
+        if (!item.file) {
+          return Promise.resolve({ dataUrl: item.url || item.dataUrl, type: item.type || 'image' });
+        }
         if (item.type === 'video') {
           if (window.KioskThemeMediaIdb && KioskThemeMediaIdb.supported()) {
             var vidRef = KioskThemeMediaIdb.newMediaId();
@@ -478,17 +548,26 @@
         }
         var now = new Date();
         var createTime = now.getFullYear() + '/' + String(now.getMonth() + 1).padStart(2, '0') + '/' + String(now.getDate()).padStart(2, '0') + ' ' + String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+        var allList = getThemes();
+        var oldTheme = createDraftThemeId ? allList.filter(function(t) { return t.id === createDraftThemeId; })[0] : null;
         var theme = {
-          id: 't' + Date.now(),
+          id: oldTheme ? oldTheme.id : ('t' + Date.now()),
           name: name,
-          effectTime: '',
-          createTime: createTime,
+          effectTime: oldTheme && oldTheme.effectTime !== undefined ? oldTheme.effectTime : '',
+          createTime: oldTheme && oldTheme.createTime ? oldTheme.createTime : createTime,
           idleTimeoutSec: idleTimeoutSec,
           transitionEffect: transitionEffect,
           carouselIntervalSec: carouselIntervalSec,
           portraitImages: [],
-          landscapeImages: []
+          landscapeImages: [],
+          publishStatus: oldTheme && oldTheme.publishStatus ? oldTheme.publishStatus : 'draft'
         };
+        if (oldTheme) {
+          if (oldTheme.distributeTime !== undefined) theme.distributeTime = oldTheme.distributeTime;
+          if (oldTheme.distributedStores) theme.distributedStores = oldTheme.distributedStores;
+          if (oldTheme.distributeChannels) theme.distributeChannels = oldTheme.distributeChannels;
+          if (oldTheme.lastDistributePrefs) theme.lastDistributePrefs = oldTheme.lastDistributePrefs;
+        }
         var portraitPromises = portraitList.map(function(item) {
           return processMedia(item, true);
         });
@@ -500,9 +579,19 @@
           theme.portraitImages = allMedia.slice(0, pCount);
           theme.landscapeImages = allMedia.slice(pCount, pCount + landscapeList.length);
           try {
-            var list = JSON.parse(localStorage.getItem('kiosk_themes') || '[]');
-            list.unshift(theme);
-            localStorage.setItem('kiosk_themes', JSON.stringify(list));
+            var list = getThemes();
+            if (createDraftThemeId && oldTheme) {
+              var idx = list.findIndex(function(t) { return t.id === createDraftThemeId; });
+              if (idx >= 0) {
+                list[idx] = theme;
+              } else {
+                list.unshift(theme);
+              }
+            } else {
+              list.unshift(theme);
+            }
+            saveThemes(list);
+            try { localStorage.setItem('current_theme_id_for_distribute', theme.id); } catch (e1) {}
             var url = redirectUrl.replace('{themeId}', encodeURIComponent(theme.id));
             window.location.href = url;
           } catch (err) {
@@ -781,6 +870,101 @@
         closeMaterialLibraryModal();
         Toast.success('已添加 ' + selectedMaterials.length + ' 个素材');
       });
+
+      function bootstrapCreatePage() {
+        var tid = urlSearchParams.get('themeId');
+        if (tid) {
+          var themes = getThemes();
+          var th = themes.filter(function(t) { return t.id === tid; })[0];
+          if (th) {
+            createDraftThemeId = th.id;
+            var nameInput = document.querySelector('#screensaverForm input[name="name"]');
+            if (nameInput) nameInput.value = th.name || '';
+            document.getElementById('idleTimeoutInput').value = th.idleTimeoutSec || 60;
+            document.getElementById('transitionEffectSelect').value = th.transitionEffect || 'fade';
+            document.getElementById('carouselIntervalInput').value = th.carouselIntervalSec || 3;
+            buildListFromStoredMedia(th.portraitImages || []).then(function(pl) {
+              portraitList = pl;
+              return buildListFromStoredMedia(th.landscapeImages || []);
+            }).then(function(ll) {
+              landscapeList = ll;
+              syncTypeRadiosFromLists();
+              updateAccept('portrait');
+              updateAccept('landscape');
+              updateHints('portrait');
+              updateHints('landscape');
+              renderPreviews('portrait');
+              renderPreviews('landscape');
+            }).catch(function() {
+              renderPreviews('portrait');
+              renderPreviews('landscape');
+            });
+            try {
+              history.replaceState({}, '', 'screensaver-create.html?themeId=' + encodeURIComponent(createDraftThemeId));
+            } catch (eH) {}
+            return;
+          }
+          try { history.replaceState({}, '', 'screensaver-create.html'); } catch (eR) {}
+        }
+        renderPreviews('portrait');
+        renderPreviews('landscape');
+        updateAccept('portrait');
+        updateAccept('landscape');
+        updateHints('portrait');
+        updateHints('landscape');
+      }
+
+      var createBackConfirmModal = document.getElementById('createBackConfirmModal');
+      function openCreateBackConfirmModal() {
+        if (!createBackConfirmModal) return;
+        createBackConfirmModal.classList.remove('hidden');
+        createBackConfirmModal.classList.add('flex');
+        createBackConfirmModal.setAttribute('aria-hidden', 'false');
+      }
+      function closeCreateBackConfirmModal() {
+        if (!createBackConfirmModal) return;
+        createBackConfirmModal.classList.add('hidden');
+        createBackConfirmModal.classList.remove('flex');
+        createBackConfirmModal.setAttribute('aria-hidden', 'true');
+      }
+      function abandonDraftAndGoToList() {
+        if (createDraftThemeId) {
+          var list = getThemes();
+          var doomed = list.filter(function(t) { return t.id === createDraftThemeId; })[0];
+          var refs = doomed && window.KioskThemeMediaIdb && KioskThemeMediaIdb.supported() ? collectVideoMediaRefs(doomed) : [];
+          var nextList = list.filter(function(t) { return t.id !== createDraftThemeId; });
+          function go() {
+            saveThemes(nextList);
+            try { localStorage.removeItem('current_theme_id_for_distribute'); } catch (e1) {}
+            try { localStorage.removeItem('selected_stores_for_distribute'); } catch (e2) {}
+            try { localStorage.removeItem('selected_channels_for_distribute'); } catch (e3) {}
+            window.location.href = 'kiosk-theme-list.html';
+          }
+          if (refs.length) {
+            Promise.all(refs.map(function(r) { return KioskThemeMediaIdb.del(r).catch(function() {}); })).then(go);
+          } else {
+            go();
+          }
+        } else {
+          window.location.href = 'kiosk-theme-list.html';
+        }
+      }
+
+      document.getElementById('createBackBtn').addEventListener('click', function() {
+        openCreateBackConfirmModal();
+      });
+      document.getElementById('createBackConfirmCancel').addEventListener('click', closeCreateBackConfirmModal);
+      document.getElementById('createBackConfirmOk').addEventListener('click', function() {
+        closeCreateBackConfirmModal();
+        abandonDraftAndGoToList();
+      });
+      if (createBackConfirmModal) {
+        createBackConfirmModal.addEventListener('click', function(e) {
+          if (e.target === createBackConfirmModal) closeCreateBackConfirmModal();
+        });
+      }
+
+      bootstrapCreatePage();
     })();
   </script>
 </body>

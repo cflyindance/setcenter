@@ -75,6 +75,12 @@
       var endDateInput = document.getElementById('endDateInput');
       var endTimeInput = document.getElementById('endTimeInput');
 
+      var effFrom = new URLSearchParams(location.search).get('from') || '';
+      var backToChannel = document.querySelector('header a[aria-label="返回"]');
+      if (backToChannel && effFrom) {
+        backToChannel.href = 'channel-select.html?from=' + encodeURIComponent(effFrom);
+      }
+
       function getTodayYmd() {
         return formatDate(new Date());
       }

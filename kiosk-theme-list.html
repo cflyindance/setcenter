@@ -64,6 +64,15 @@
             <input type="text" id="filterName" placeholder="主题名称" class="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-ant text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" aria-label="按主题名称筛选" />
           </div>
           <div class="flex flex-wrap items-center gap-2">
+            <span class="text-sm text-gray-600 whitespace-nowrap">上下架</span>
+            <select id="filterShelfStatus" class="px-3 py-2 border border-gray-200 rounded-ant text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" aria-label="按上下架状态筛选">
+            <option value="" selected>全部</option>
+            <option value="未上架">未上架</option>
+            <option value="已上架">已上架</option>
+            <option value="已下架">已下架</option>
+          </select>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
             <span class="text-sm text-gray-600 whitespace-nowrap">生效状态</span>
             <select id="filterEffectStatus" class="px-3 py-2 border border-gray-200 rounded-ant text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" aria-label="按生效状态筛选">
             <option value="" selected>全部</option>
@@ -139,7 +148,6 @@
           <button type="button" id="storesFilterReset" class="px-2.5 py-1.5 text-xs rounded-ant border border-gray-200 bg-white hover:bg-gray-50 text-gray-600">重置</button>
         </div>
         <p id="storesFilteredHint" class="text-xs text-gray-400 hidden" aria-live="polite"></p>
-        <p class="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-ant px-2 py-1.5">各关联渠道可按渠道<strong>单独</strong>设为<strong>不展示</strong>或<strong>恢复展示</strong>；并支持按门店进行<strong>全渠道不展示</strong>/<strong>全渠道展示</strong>批量设置；不支持在此修改门店名称或 MID。</p>
       </div>
       <div id="storesListContainer" class="flex-1 overflow-auto p-4 space-y-2"></div>
     </div>
@@ -668,12 +676,16 @@
         });
 
         var filterName = (document.getElementById('filterName').value || '').trim().toLowerCase();
+        var filterShelfStatus = document.getElementById('filterShelfStatus').value;
         var filterEffStatus = document.getElementById('filterEffectStatus').value;
         var filterStartDate = document.getElementById('filterStartDate').value;
         var filterEndDate = document.getElementById('filterEndDate').value;
 
         list = list.filter(function(t) {
           if (filterName && (!t.name || t.name.toLowerCase().indexOf(filterName) < 0)) return false;
+
+          var shelfSt = getListShelfStatus(t);
+          if (filterShelfStatus && (!shelfSt || shelfSt.text !== filterShelfStatus)) return false;
 
           var effStatus = getListEffectStatus(t);
           if (filterEffStatus && (!effStatus || effStatus.text !== filterEffStatus)) return false;
@@ -1633,6 +1645,11 @@
         render();
       });
 
+      document.getElementById('filterShelfStatus').addEventListener('change', function() {
+        currentPage = 1;
+        render();
+      });
+
       document.getElementById('filterEffectStatus').addEventListener('change', function() {
         currentPage = 1;
         render();
@@ -1650,6 +1667,7 @@
 
       document.getElementById('filterResetBtn').addEventListener('click', function() {
         document.getElementById('filterName').value = '';
+        document.getElementById('filterShelfStatus').value = '';
         document.getElementById('filterEffectStatus').value = '';
         document.getElementById('filterStartDate').value = '';
         document.getElementById('filterEndDate').value = '';

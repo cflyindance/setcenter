@@ -29,13 +29,14 @@
     <main class="flex-1 p-6 max-w-2xl mx-auto w-full">
       <h2 class="text-base font-semibold text-gray-800 mb-4">选择展示生效时间</h2>
       <div class="space-y-4">
-        <p class="text-sm text-gray-600">请设置展示生效的 <strong>开始时间</strong> 与 <strong>结束时间</strong>（日期 + 时分）。</p>
+        <p class="text-sm text-gray-600">请设置展示生效的 <strong>开始时间</strong> 与 <strong>结束时间</strong>（日期 + 时分）。开始时间可为过去时间；保存时仅校验结束晚于开始及与已生效主题重叠等规则，不与当前时刻做严格比对。</p>
         <div id="timePickerWrap" class="space-y-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">开始时间 <span class="text-red-500">*</span></label>
             <div class="flex flex-wrap gap-2 items-center">
               <input type="date" id="startDateInput" class="flex-1 min-w-[140px] px-3 py-2 border border-gray-200 rounded-ant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" title="选择年月日" />
               <input type="time" id="startTimeInput" class="w-28 px-3 py-2 border border-gray-200 rounded-ant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" title="选择时分" step="60" />
+              <button type="button" id="startTimeNowBtn" class="shrink-0 px-3 py-2 text-sm font-medium text-primary border border-primary/40 rounded-ant hover:bg-primary/5 focus:outline-none focus:ring-1 focus:ring-primary" title="将开始时间设为当前时刻" aria-label="Now：将开始时间设为当前时刻">Now</button>
             </div>
           </div>
           <div>
@@ -45,38 +46,18 @@
               <input type="time" id="endTimeInput" class="w-28 px-3 py-2 border border-gray-200 rounded-ant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary" title="选择时分" />
             </div>
           </div>
-          <div id="effectTimeConflictHints" class="hidden space-y-2" aria-live="polite">
-            <div class="flex flex-wrap items-center gap-2 text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-ant px-3 py-2">
-              <span id="effectTimeConflictSummary">在相同门店、相同渠道下，当前主题与已生效主题存在生效时间重叠。</span>
-              <button type="button" id="effectTimeOverlapDetailBtn" class="text-primary font-medium hover:underline text-sm shrink-0">查看详情</button>
-            </div>
-          </div>
         </div>
       </div>
     </main>
   </div>
-  <!-- 生效时间重叠详情（版式与列表「无法上架」说明相近，本页仅展示不拦截保存） -->
-  <div id="effectTimeOverlapModal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/50 p-4" aria-hidden="true">
-    <div class="bg-white rounded-lg shadow-xl w-full max-w-md flex flex-col max-h-[85vh]" role="dialog" aria-modal="true" aria-labelledby="effectTimeOverlapTitle">
-      <div class="px-4 py-3 border-b border-gray-200 flex-shrink-0">
-        <h3 id="effectTimeOverlapTitle" class="font-semibold text-gray-800">冲突详情</h3>
-      </div>
-      <div class="px-4 py-4 min-h-0 max-h-[50vh] overflow-y-auto overscroll-contain">
-        <p id="effectTimeOverlapMessage" class="text-sm text-gray-600 leading-relaxed whitespace-pre-line"></p>
-      </div>
-      <div class="px-4 py-3 border-t border-gray-100 flex justify-end flex-shrink-0">
-        <button type="button" id="effectTimeOverlapOk" class="px-4 py-2 rounded-ant bg-primary text-white text-sm hover:bg-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1">知道了</button>
-      </div>
-    </div>
-  </div>
-  <!-- 保存：与已生效主题时间重叠时二次确认 -->
+  <!-- 保存时若与已生效主题时间重叠则弹出（仅保存时校验，编辑过程中不提示） -->
   <div id="overlapSaveConfirmModal" class="fixed inset-0 z-[61] hidden items-center justify-center bg-black/50 p-4" aria-hidden="true">
-    <div class="bg-white rounded-lg shadow-xl w-full max-w-sm" role="dialog" aria-modal="true" aria-labelledby="overlapSaveConfirmTitle">
-      <div class="px-4 py-3 border-b border-gray-200">
-        <h3 id="overlapSaveConfirmTitle" class="font-semibold text-gray-800">提示</h3>
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]" role="dialog" aria-modal="true" aria-labelledby="overlapSaveConfirmTitle">
+      <div class="px-4 py-3 border-b border-gray-200 flex-shrink-0">
+        <h3 id="overlapSaveConfirmTitle" class="font-semibold text-gray-800">活动冲突</h3>
       </div>
-      <p id="overlapSaveConfirmText" class="px-4 py-4 text-sm text-gray-600 leading-relaxed whitespace-pre-line"></p>
-      <div class="px-4 py-3 border-t border-gray-100 flex justify-end gap-2">
+      <p id="overlapSaveConfirmText" class="px-4 py-4 text-sm text-gray-600 leading-relaxed whitespace-pre-line overflow-y-auto min-h-0 max-h-[55vh] overscroll-contain"></p>
+      <div class="px-4 py-3 border-t border-gray-100 flex justify-end gap-2 flex-shrink-0">
         <button type="button" id="overlapSaveConfirmCancel" class="px-4 py-2 rounded-ant border border-gray-200 text-sm text-gray-700 hover:bg-gray-50">取消</button>
         <button type="button" id="overlapSaveConfirmOk" class="px-4 py-2 rounded-ant bg-primary text-white text-sm hover:bg-blue-600">确定保存</button>
       </div>
@@ -108,73 +89,24 @@
         backToChannel.href = 'channel-select.html?from=' + encodeURIComponent(effFrom);
       }
 
-      function getTodayYmd() {
-        return formatDate(new Date());
-      }
-
-      /** 解析开始日期+时间为时间戳（本地） */
-      function parseStartDateTimeAsMs() {
-        if (!startDateInput || !startTimeInput) return null;
-        var sd = startDateInput.value;
-        var st = startTimeInput.value;
-        if (!sd || !st) return null;
-        var stNorm = st.length === 5 ? st + ':00' : st;
-        var ms = new Date(sd + 'T' + stNorm).getTime();
-        return isNaN(ms) ? null : ms;
-      }
-
-      /** 开始时间不得早于当前时刻 */
-      function validateStartNotInPast() {
-        var ms = parseStartDateTimeAsMs();
-        if (ms == null) return null;
-        if (ms < Date.now()) return '开始时间不得早于当前时间，请重新选择。';
-        return null;
-      }
-
-      /** 开始日期 min=今日；若开始日为今日则开始时刻 min=当前时刻 */
-      function applyStartDateTimeMinFromNow() {
-        if (!startDateInput || !startTimeInput) return;
-        var today = getTodayYmd();
-        startDateInput.setAttribute('min', today);
-        var sd = startDateInput.value;
-        if (sd === today) {
-          startTimeInput.setAttribute('min', formatTime(new Date()));
-        } else {
-          startTimeInput.removeAttribute('min');
-        }
-      }
-
-      /** 若已选开始早于当前时间，则钳到当前时刻并同步结束日默认 */
-      function clampStartToNowIfNeeded() {
-        if (!startDateInput || !startTimeInput) return;
-        var ms = parseStartDateTimeAsMs();
-        if (ms == null || ms >= Date.now()) {
-          applyStartDateTimeMinFromNow();
-          return;
-        }
-        var now = new Date();
-        startDateInput.value = formatDate(now);
-        startTimeInput.value = formatTime(now);
-        applyStartDateTimeMinFromNow();
-        syncEndDateToDayAfterStart();
-        applyEndMin();
+      /** 开始时间允许早于「当前时刻」：不限制 date/time 的 min（结束与开始的相对关系仍由 applyEndMin 处理） */
+      function clearStartDateTimeMinConstraints() {
+        if (startDateInput) startDateInput.removeAttribute('min');
+        if (startTimeInput) startTimeInput.removeAttribute('min');
       }
 
       if (startDateInput) {
         function onStartDateChanged() {
-          applyStartDateTimeMinFromNow();
-          syncEndDateToDayAfterStart();
+          clearStartDateTimeMinConstraints();
           applyEndMin();
-          updateOverlapRuleHint();
         }
         startDateInput.addEventListener('change', onStartDateChanged);
         startDateInput.addEventListener('input', onStartDateChanged);
       }
       if (startTimeInput) {
         function onStartTimeChanged() {
-          applyStartDateTimeMinFromNow();
+          clearStartDateTimeMinConstraints();
           applyEndMin();
-          updateOverlapRuleHint();
         }
         startTimeInput.addEventListener('change', onStartTimeChanged);
         startTimeInput.addEventListener('input', onStartTimeChanged);
@@ -195,7 +127,6 @@
       if (endDateInput) {
         function onEndDateEl() {
           applyEndMin();
-          updateOverlapRuleHint();
         }
         endDateInput.addEventListener('change', onEndDateEl);
         endDateInput.addEventListener('input', onEndDateEl);
@@ -203,7 +134,6 @@
       if (endTimeInput) {
         function onEndTimeEl() {
           applyEndMin();
-          updateOverlapRuleHint();
         }
         endTimeInput.addEventListener('change', onEndTimeEl);
         endTimeInput.addEventListener('input', onEndTimeEl);
@@ -214,48 +144,6 @@
       }
       function formatTime(d) {
         return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
-      }
-      /** 将 YYYY-MM-DD 转为日历下一天，非法则返回空串 */
-      function addOneCalendarDayYmd(ymd) {
-        if (!ymd || typeof ymd !== 'string') return '';
-        var p = ymd.split('-');
-        if (p.length !== 3) return '';
-        var d = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
-        if (isNaN(d.getTime())) return '';
-        d.setDate(d.getDate() + 1);
-        return formatDate(d);
-      }
-      /** 自定义生效：开始日期变更后，结束日期默认设为开始日期的下一天 */
-      function syncEndDateToDayAfterStart() {
-        if (!startDateInput || !endDateInput) return;
-        var sd = startDateInput.value;
-        if (!sd) return;
-        var next = addOneCalendarDayYmd(sd);
-        if (next) endDateInput.value = next;
-        applyEndMin();
-      }
-      /** 默认开始时刻：新建屏保流程为当前时间 +1 分钟，其余为当前时刻 */
-      function setStartNow() {
-        var d = new Date();
-        if (effFrom === 'create') {
-          d.setMinutes(d.getMinutes() + 1);
-        }
-        if (startDateInput) startDateInput.value = formatDate(d);
-        if (startTimeInput) startTimeInput.value = formatTime(d);
-      }
-      function setEndNow() {
-        var startD = startDateInput ? startDateInput.value : '';
-        var startT = startTimeInput ? startTimeInput.value : '';
-        var d = new Date();
-        var dStr = formatDate(d);
-        var tStr = formatTime(d);
-        if (startD && (dStr < startD || (dStr === startD && startT && tStr < startT))) {
-          dStr = startD;
-          tStr = startT || tStr;
-        }
-        if (endDateInput) endDateInput.value = dStr;
-        if (endTimeInput) endTimeInput.value = tStr;
-        applyEndMin();
       }
       var prefsFromTheme = null;
       (function loadLastDistributePrefs() {
@@ -274,25 +162,22 @@
         if (startTimeInput) startTimeInput.value = prefsFromTheme.startTime;
         if (endDateInput) endDateInput.value = prefsFromTheme.endDate;
         if (endTimeInput) endTimeInput.value = prefsFromTheme.endTime;
-      } else {
-        if (startDateInput && !startDateInput.value) {
-          setStartNow();
-        }
-        if (endDateInput && !endDateInput.value) {
-          if (startDateInput && startDateInput.value) {
-            var nextInit = addOneCalendarDayYmd(startDateInput.value);
-            if (nextInit) endDateInput.value = nextInit;
-            if (startTimeInput && endTimeInput && !endTimeInput.value) {
-              endTimeInput.value = startTimeInput.value;
-            }
-          }
-          if (!endDateInput.value) setEndNow();
-        }
       }
+      /* 否则：开始/结束日期与时间均保持为空，不预填当前时刻或「下一天」等默认值 */
 
-      clampStartToNowIfNeeded();
-      applyStartDateTimeMinFromNow();
+      clearStartDateTimeMinConstraints();
       applyEndMin();
+
+      var startTimeNowBtn = document.getElementById('startTimeNowBtn');
+      if (startTimeNowBtn) {
+        startTimeNowBtn.addEventListener('click', function() {
+          var now = new Date();
+          if (startDateInput) startDateInput.value = formatDate(now);
+          if (startTimeInput) startTimeInput.value = formatTime(now);
+          clearStartDateTimeMinConstraints();
+          applyEndMin();
+        });
+      }
 
       var submitConfirmModal = document.getElementById('submitConfirmModal');
       var submitConfirmOk = document.getElementById('submitConfirmOk');
@@ -580,82 +465,24 @@
         return { start: startMs, end: endMs };
       }
 
-      var effectTimeConflictHintsEl = document.getElementById('effectTimeConflictHints');
-      var effectTimeOverlapModal = document.getElementById('effectTimeOverlapModal');
-      var effectTimeOverlapMessage = document.getElementById('effectTimeOverlapMessage');
-      var effectTimeOverlapOk = document.getElementById('effectTimeOverlapOk');
-      var effectTimeOverlapDetailBtn = document.getElementById('effectTimeOverlapDetailBtn');
-      var lastOverlapDetailBody = '';
-
-      function openEffectTimeOverlapModal() {
-        if (effectTimeOverlapMessage) effectTimeOverlapMessage.textContent = lastOverlapDetailBody || '';
-        if (!effectTimeOverlapModal) return;
-        effectTimeOverlapModal.classList.remove('hidden');
-        effectTimeOverlapModal.classList.add('flex');
-        effectTimeOverlapModal.setAttribute('aria-hidden', 'false');
-        if (effectTimeOverlapOk) effectTimeOverlapOk.focus();
-      }
-
-      function closeEffectTimeOverlapModal() {
-        if (!effectTimeOverlapModal) return;
-        effectTimeOverlapModal.classList.add('hidden');
-        effectTimeOverlapModal.classList.remove('flex');
-        effectTimeOverlapModal.setAttribute('aria-hidden', 'true');
-      }
-
-      function updateOverlapRuleHint() {
-        if (!effectTimeConflictHintsEl) return;
-        var result = findOverlapConflictsWithActivePublished();
-        var conflicts = result.conflicts;
-        var candidate = result.candidate;
-        if (conflicts.length && candidate) {
-          lastOverlapDetailBody = formatEffectiveOverlapDetailMessage(conflicts, candidate);
-          effectTimeConflictHintsEl.classList.remove('hidden');
-        } else {
-          lastOverlapDetailBody = '';
-          effectTimeConflictHintsEl.classList.add('hidden');
-        }
-      }
-
-      updateOverlapRuleHint();
-
-      setInterval(function() {
-        applyStartDateTimeMinFromNow();
-        updateOverlapRuleHint();
-      }, 60000);
-
-      if (effectTimeOverlapDetailBtn) {
-        effectTimeOverlapDetailBtn.addEventListener('click', function() {
-          openEffectTimeOverlapModal();
-        });
-      }
-      if (effectTimeOverlapOk) {
-        effectTimeOverlapOk.addEventListener('click', closeEffectTimeOverlapModal);
-      }
-      if (effectTimeOverlapModal) {
-        effectTimeOverlapModal.addEventListener('click', function(e) {
-          if (e.target === effectTimeOverlapModal) closeEffectTimeOverlapModal();
-        });
-      }
-
       function executeSaveDraftFromEffectiveTime() {
-        var themeId = '';
-        try { themeId = localStorage.getItem('current_theme_id_for_distribute') || ''; } catch (e) {}
-        if (themeId) {
-          var raw = localStorage.getItem('kiosk_themes');
-          var themes = raw ? JSON.parse(raw) : [];
-          var theme = themes.filter(function(t) { return t.id === themeId; })[0];
-          if (theme) {
+          var themeId = '';
+          try { themeId = localStorage.getItem('current_theme_id_for_distribute') || ''; } catch (e) {}
+          if (themeId) {
+            var raw = localStorage.getItem('kiosk_themes');
+            var themes = raw ? JSON.parse(raw) : [];
+            var theme = themes.filter(function(t) { return t.id === themeId; })[0];
+            if (theme) {
             theme.distributeTime = '--';
             theme.publishStatus = 'draft';
-            var selectedChannels = [];
-            try {
-              selectedChannels = JSON.parse(localStorage.getItem('selected_channels_for_distribute') || '[]');
-            } catch (e) {}
-            var selectedStores = [];
-            try {
-              selectedStores = JSON.parse(localStorage.getItem('selected_stores_for_distribute') || '[]');
-            } catch (e) {}
+              var selectedChannels = [];
+              try {
+                selectedChannels = JSON.parse(localStorage.getItem('selected_channels_for_distribute') || '[]');
+              } catch (e) {}
+              var selectedStores = [];
+              try {
+                selectedStores = JSON.parse(localStorage.getItem('selected_stores_for_distribute') || '[]');
+              } catch (e) {}
             var channelsForStores = Array.isArray(selectedChannels) && selectedChannels.length ? selectedChannels : ['Kiosk'];
             if (startDateInput && startTimeInput && endDateInput && endTimeInput) {
               var sD = startDateInput.value.replace(/-/g, '/');
@@ -665,7 +492,7 @@
               theme.effectTime = (sD && sT && eD && eT) ? sD + ' ' + sT + ' - ' + eD + ' ' + eT : '--';
             }
             theme.distributeChannels = Array.isArray(selectedChannels) ? selectedChannels : [];
-            theme.distributedStores = selectedStores.map(function(store, idx) {
+              theme.distributedStores = selectedStores.map(function(store, idx) {
               var channelStatuses = channelsForStores.map(function(chName) {
                 return { channel: chName };
               });
@@ -679,13 +506,13 @@
               endDate: endDateInput ? endDateInput.value : '',
               endTime: endTimeInput ? endTimeInput.value : ''
             };
-            localStorage.setItem('kiosk_themes', JSON.stringify(themes));
-            try { localStorage.removeItem('selected_stores_for_distribute'); } catch (e) {}
-            try { localStorage.removeItem('selected_channels_for_distribute'); } catch (e) {}
+              localStorage.setItem('kiosk_themes', JSON.stringify(themes));
+              try { localStorage.removeItem('selected_stores_for_distribute'); } catch (e) {}
+              try { localStorage.removeItem('selected_channels_for_distribute'); } catch (e) {}
             try { localStorage.removeItem('distribute_date'); } catch (e) {}
             try { localStorage.removeItem('distribute_time'); } catch (e) {}
-          }
-          try { localStorage.removeItem('current_theme_id_for_distribute'); } catch (e) {}
+            }
+            try { localStorage.removeItem('current_theme_id_for_distribute'); } catch (e) {}
         }
         window.location.href = 'kiosk-theme-list.html';
       }
@@ -696,11 +523,20 @@
       var overlapSaveConfirmCancel = document.getElementById('overlapSaveConfirmCancel');
       var pendingOverlapSaveExecute = null;
 
-      function openOverlapSaveConfirmModal(conflicts) {
-        if (overlapSaveConfirmText && window.KioskThemeOverlap && typeof KioskThemeOverlap.formatOverlapSaveConfirmText === 'function') {
-          overlapSaveConfirmText.textContent = KioskThemeOverlap.formatOverlapSaveConfirmText(conflicts || []);
-        } else if (overlapSaveConfirmText && window.KioskThemeOverlap) {
-          overlapSaveConfirmText.textContent = KioskThemeOverlap.CONFIRM_MESSAGE;
+      /** overlapResult: { conflicts, candidate }；正文使用与旧「查看详情」一致的完整说明 */
+      function openOverlapSaveConfirmModal(overlapResult) {
+        var conflicts = overlapResult && overlapResult.conflicts ? overlapResult.conflicts : [];
+        var candidate = overlapResult && overlapResult.candidate ? overlapResult.candidate : null;
+        if (overlapSaveConfirmText) {
+          if (candidate && conflicts.length) {
+            overlapSaveConfirmText.textContent = formatEffectiveOverlapDetailMessage(conflicts, candidate);
+          } else if (window.KioskThemeOverlap && typeof KioskThemeOverlap.formatOverlapSaveConfirmText === 'function') {
+            overlapSaveConfirmText.textContent = KioskThemeOverlap.formatOverlapSaveConfirmText(conflicts);
+          } else if (window.KioskThemeOverlap) {
+            overlapSaveConfirmText.textContent = KioskThemeOverlap.CONFIRM_MESSAGE;
+          } else {
+            overlapSaveConfirmText.textContent = '在相同门店、相同渠道下，当前主题与已生效主题存在生效时间重叠。';
+          }
         }
         if (!overlapSaveConfirmModal) {
           var runDirect = pendingOverlapSaveExecute;
@@ -723,11 +559,6 @@
 
       document.getElementById('submitBtn').addEventListener('click', function(e) {
         e.preventDefault();
-        var pastErr = validateStartNotInPast();
-        if (pastErr) {
-          Toast.warning(pastErr);
-          return;
-        }
         var pr = getProposedTimeRangeMs();
         if (!pr) {
           Toast.warning('请填写完整的开始与结束时间。');
@@ -740,7 +571,7 @@
         var overlapResult = findOverlapConflictsWithActivePublished();
         if (overlapResult.conflicts && overlapResult.conflicts.length) {
           pendingOverlapSaveExecute = executeSaveDraftFromEffectiveTime;
-          openOverlapSaveConfirmModal(overlapResult.conflicts);
+          openOverlapSaveConfirmModal(overlapResult);
           return;
         }
         executeSaveDraftFromEffectiveTime();
@@ -775,11 +606,6 @@
           e.preventDefault();
           pendingOverlapSaveExecute = null;
           closeOverlapSaveConfirmModal();
-          return;
-        }
-        if (effectTimeOverlapModal && !effectTimeOverlapModal.classList.contains('hidden')) {
-          e.preventDefault();
-          closeEffectTimeOverlapModal();
         }
       });
     })();

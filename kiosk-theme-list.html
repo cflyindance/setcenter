@@ -165,7 +165,7 @@
       </div>
     </div>
   </div>
-  <!-- 上架拦截：与已上架主题在相同门店+渠道上生效时间重叠 -->
+  <!-- 上架拦截：仅与列表为「已上架」的主题在相同门店+渠道上比对时间重叠（不比对待上架、已下架） -->
   <div id="publishBlockModal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/50 p-4" aria-hidden="true">
     <div class="bg-white rounded-lg shadow-xl w-full max-w-md flex flex-col max-h-[85vh]" role="dialog" aria-modal="true" aria-labelledby="publishBlockTitle">
       <div class="px-4 py-3 border-b border-gray-200 flex-shrink-0">
@@ -507,6 +507,11 @@
         return { text: '已上架', color: 'bg-green-100 text-green-700' };
       }
 
+      /** 上架时间冲突的对手方：仅列表为「已上架」的主题（不含待上架草稿、不含展示为已下架的过期已发布主题） */
+      function isListShelfPublishedForOverlap(other) {
+        return getListShelfStatus(other).text === '已上架';
+      }
+
       /** 列表展示口径：待上架固定「待生效」；已上架按生效时间计算 */
       function getListEffectStatus(theme) {
         if (!theme) return null;
@@ -617,7 +622,7 @@
         return false;
       }
 
-      /** 上架前校验：与任意已上架主题在相同门店+相同渠道上生效时间是否重叠 */
+      /** 上架前校验：仅与列表上架状态为「已上架」的主题在相同门店+相同渠道上比对生效时间是否重叠（不比对待上架、已下架） */
       function findShelfTimeConflictsForPublish(candidate, allThemes) {
         var myRange = parseStoredThemeEffectRange(candidate);
         if (!myRange) {
@@ -635,7 +640,7 @@
         for (var i = 0; i < allThemes.length; i++) {
           var other = allThemes[i];
           if (!other || other.id === candidate.id) continue;
-          if (other.publishStatus !== 'published') continue;
+          if (!isListShelfPublishedForOverlap(other)) continue;
           var otherRange = parseStoredThemeEffectRange(other);
           if (!otherRange) continue;
           if (!rangesOverlap(myRange, otherRange)) continue;
@@ -729,10 +734,10 @@
         });
 
         var out = [];
-        out.push('在相同门店、相同渠道下，当前主题与生效中主题存在生效时间重叠，无法上架。');
+        out.push('在相同门店、相同渠道下，当前主题与其他已上架主题存在生效时间重叠，无法上架。');
         out.push('');
         if (globalThemes.length) {
-          out.push('冲突生效中主题：');
+          out.push('冲突的已上架主题：');
           globalThemes.forEach(function(r) {
             out.push('  · 「' + r.themeName + '」');
             out.push('    ' + overlapThemeTimeRangeLine(r));

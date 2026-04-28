@@ -1,4 +1,4 @@
-/* Toast 提示组件 */
+/* Toast 提示组件（含新建屏保校验样式：红底白字 + 白圆红叉，对齐设计稿） */
 (function() {
   var containerId = 'toastContainer';
 
@@ -11,6 +11,18 @@
       document.body.appendChild(container);
     }
     return container;
+  }
+
+  function escapeToastText(text) {
+    var d = document.createElement('div');
+    d.textContent = text == null ? '' : String(text);
+    return d.innerHTML;
+  }
+
+  function getValidateIconHtml() {
+    return '<span class="toast-validate-icon" aria-hidden="true"><span class="toast-validate-icon-bg">' +
+      '<svg class="toast-validate-icon-x" width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+      '<path d="M2.5 2.5L7.5 7.5M7.5 2.5L2.5 7.5" stroke="#ff4d4f" stroke-width="1.4" stroke-linecap="round"/></svg></span></span>';
   }
 
   function getIcon(type) {
@@ -29,8 +41,15 @@
 
     var container = getContainer();
     var toast = document.createElement('div');
-    toast.className = 'toast toast-' + type;
-    toast.innerHTML = getIcon(type) + '<span>' + message + '</span>';
+    var safe = escapeToastText(message);
+    if (type === 'validate') {
+      toast.className = 'toast toast-validate';
+      toast.setAttribute('role', 'alert');
+      toast.innerHTML = getValidateIconHtml() + '<span class="toast-validate-text">' + safe + '</span>';
+    } else {
+      toast.className = 'toast toast-' + type;
+      toast.innerHTML = getIcon(type) + '<span>' + safe + '</span>';
+    }
     container.appendChild(toast);
 
     setTimeout(function() {
@@ -48,6 +67,8 @@
     success: function(msg, duration) { showToast(msg, 'success', duration); },
     error: function(msg, duration) { showToast(msg, 'error', duration); },
     warning: function(msg, duration) { showToast(msg, 'warning', duration); },
-    info: function(msg, duration) { showToast(msg, 'info', duration); }
+    info: function(msg, duration) { showToast(msg, 'info', duration); },
+    /** 表单校验：红底白字胶囊（新建屏保 Figma 校验态） */
+    validate: function(msg, duration) { showToast(msg, 'validate', duration != null ? duration : 3500); }
   };
 })();
